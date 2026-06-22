@@ -13,8 +13,13 @@ def load_yolo_model():
     # Using the best.pt from our training run
     model_path = r"runs\detect\motorbike_yolo11n\weights\best.pt"
     if not os.path.exists(model_path):
-        st.error(f"Model not found at {model_path}. Please wait for training to generate it.")
-        return None
+        fallback_path = "yolo11n.pt"
+        if os.path.exists(fallback_path):
+            st.warning(f"Chưa tìm thấy model đã train ở `{model_path}`. Đang dùng tạm model mặc định `{fallback_path}`.")
+            return yolo_detector.load_model(fallback_path)
+        else:
+            st.error(f"Model not found at {model_path}. Please wait for training to generate it.")
+            return None
     return yolo_detector.load_model(model_path)
 
 def main():
@@ -25,6 +30,7 @@ def main():
     st.sidebar.header("Settings")
     conf_threshold = st.sidebar.slider("Confidence Threshold", min_value=0.0, max_value=1.0, value=0.25, step=0.05)
     custom_fps = st.sidebar.slider("Playback FPS (0 = original video speed)", min_value=0.0, max_value=120.0, value=0.0, step=5.0)
+    frame_skip = st.sidebar.slider("Frame Skip (Process 1 in every N frames)", min_value=1, max_value=10, value=1, step=1)
     
     # Load model
     model = load_yolo_model()
@@ -63,6 +69,7 @@ def main():
             
             import time
             stop_button = st.button("Stop Processing")
+            frame_counter = 0
 
             while cap.isOpened():
                 start_time = time.time()
@@ -70,6 +77,10 @@ def main():
                 ret, frame = cap.read()
                 if not ret or stop_button:
                     break
+                    
+                frame_counter += 1
+                if frame_counter % frame_skip != 0:
+                    continue
                     
                 # OpenCV reads in BGR, but Streamlit expects RGB
                 # Let's detect on the BGR frame first
