@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 3
+names: ['car', 'motorcycle', 'truck']
+
+roboflow:
+  workspace: chanyanuch
+  project: car-motorcycle-truck
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/chanyanuch/car-motorcycle-truck/dataset/1

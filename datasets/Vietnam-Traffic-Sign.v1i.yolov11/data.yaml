@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 54
+names: ['cam_cac_loai_xe_3_banh', 'cam_do_xe', 'cam_dung_xe_va_do_xe', 'cam_o_to', 'cam_o_to_quay_dau_xe', 'cam_o_to_re_phai', 'cam_o_to_re_trai', 'cam_o_to_tai', 'cam_o_to_tai_trong_luong_qua_10t', 'cam_o_to_tai_trong_luong_qua_2-5t', 'cam_o_to_tai_va_xe_khach', 'cam_quay_dau_xe', 'cam_re_phai', 'cam_re_trai', 'cam_re_trai_va_phai', 'cam_su_dung_coi', 'cam_vuot', 'cam_xe_2_banh_va_xe_3_banh_co_dong_co', 'cam_xe_di_nguoc_chieu', 'cho', 'cho_ngoat_nguy_hiem_ben_phai', 'cho_ngoat_nguy_hiem_ben_trai', 'cho_ngoat_nguy_hiem_lien_tiep', 'cho_quay_xe', 'chu_y_nguoi_di_bo_cat_ngang', 'chu_y_nguoi_di_xe_dap_cat_ngang', 'chu_y_tre_em', 'cong_truong', 'di_cham', 'duong_cho_nguoi_di_bo', 'duong_cho_xe_o_to', 'duong_co_o_ga', 'duong_co_song_map_mo_nhan_tao', 'duong_het_uu_tien', 'duong_mot_chieu', 'duong_nguoi_di_bo_sang_ngang', 'duong_uu_tien', 'giao_nhau_co_tin_hieu_den', 'giao_nhau_voi_duong_khong_uu_tien', 'giao_nhau_voi_duong_uu_tien', 'han_che_chieu_cao', 'huong_di_tren_moi_lan_duong_theo_vach_ke_duong', 'huong_phai_di_vuot_chuong_ngai_vat_phai', 'huong_phai_di_vuot_chuong_ngai_vat_trai', 'khac', 'khu_vuc_quay_xe', 'lan_duong_cho_tung_xe_theo_vach_ke_duong', 'nguy_hiem_khac', 'noi_giao_nhau_chay_theo_vong', 'object', 'toc_do_toi_da_40', 'toc_do_toi_da_50', 'toc_do_toi_da_60', 'toc_do_toi_da_80']
+
+roboflow:
+  workspace: vietnamtrafficsign
+  project: vietnam-traffic-sign
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/vietnamtrafficsign/vietnam-traffic-sign/dataset/1
