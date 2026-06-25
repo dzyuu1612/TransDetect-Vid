@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transdetect-vid"
+version = "0.1.0"
+description = "Vehicle detection in video using classical computer vision and YOLO11"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python>=4.9",
+    "ultralytics>=8.3",
+    "streamlit>=1.36",
+    "pillow>=10.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

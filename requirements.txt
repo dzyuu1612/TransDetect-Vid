@@ -1,0 +1,8 @@
+opencv-python>=4.9.0
+numpy>=1.26.0
+pandas>=2.2.0
+streamlit>=1.36.0
+ultralytics>=8.3.0
+pillow>=10.0.0
+tqdm>=4.66.0
+pyngrok>=7.1.0

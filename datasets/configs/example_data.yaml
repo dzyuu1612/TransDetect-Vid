@@ -1,0 +1,11 @@
+# Cấu hình dataset mẫu cho YOLO11 (định dạng Ultralytics).
+# Sao chép file này và chỉnh đường dẫn/lớp theo dataset thực tế của bạn.
+# Tham khảo: https://docs.ultralytics.com/datasets/detect/
+
+train: ../local/vehicle/train/images
+val: ../local/vehicle/valid/images
+test: ../local/vehicle/test/images
+
+# Số lớp và tên lớp (phương tiện giao thông trong phạm vi đề tài).
+nc: 4
+names: ['bus', 'car', 'motorcycle', 'truck']
