@@ -373,7 +373,7 @@ def main():
                 cap.set(cv2.CAP_PROP_POS_FRAMES, st.session_state.current_frame_idx)
             ret, frame = cap.read()
             if ret:
-                video_placeholder.image(frame, channels="BGR", use_container_width=True)
+                video_placeholder.image(frame, channels="BGR")
             cap.release()
             return # Exit to keep Streamlit responsive while paused
 
@@ -383,6 +383,10 @@ def main():
         frame_idx = st.session_state.get("current_frame_idx", 0)
         start_frame_idx = frame_idx
         start_time = time.time()
+        last_ui_update_time = 0
+        last_fps_time = time.time()
+        last_fps_frame_idx = frame_idx
+        instant_fps = 0.0
         
         yolo_detector = None
         if st.session_state.method_selector == "YOLO11":
@@ -404,15 +408,23 @@ def main():
             st.session_state.current_frame_idx = frame_idx
             curr_time = time.time()
             elapsed = curr_time - start_time
-            processed_in_session = frame_idx - start_frame_idx
-            current_fps = processed_in_session / elapsed if elapsed > 0 else 0
+            
+            # Calculate instantaneous FPS over the last 10 frames to avoid warmup penalty
+            if frame_idx - last_fps_frame_idx >= 10:
+                instant_fps = (frame_idx - last_fps_frame_idx) / (curr_time - last_fps_time)
+                last_fps_time = curr_time
+                last_fps_frame_idx = frame_idx
+            
+            current_fps = instant_fps if instant_fps > 0 else 0
+            
             # --- 1. Detection Logic (REAL DATA) ---
             detections = []
             if st.session_state.method_selector == "Classical Pipeline":
                 pre = preprocessing.preprocess_frame(frame, config.MEDIAN_KERNEL_SIZE)
-                boxes, counts, _, _ = classical_detector.detect_vehicle_candidates(
+                boxes, _, _ = classical_detector.detect_vehicle_candidates(
                     pre, config.MIN_CONTOUR_AREA, config.MAX_ASPECT_RATIO
                 )
+                counts = {"Car": len(boxes), "Motorcycle": 0, "Bus": 0, "Truck": 0}
                 frame_to_draw = visualization.draw_classical_boxes(frame.copy(), boxes)
             else:
                 if yolo_detector:
@@ -424,6 +436,7 @@ def main():
                             counts[cls_name] += 1
                         else:
                             counts["Car"] += 1
+                            
                     frame_to_draw = visualization.draw_yolo_detections(frame.copy(), detections)
                 else:
                     frame_to_draw = frame.copy()
@@ -451,42 +464,52 @@ def main():
                         "count": count
                     })
 
-            # --- 2. Update Video Preview ---
-            curr_s = frame_idx / fps_video if fps_video > 0 else 0
-            curr_str = time.strftime('%H:%M:%S', time.gmtime(curr_s))
-            prog_val = min(1.0, frame_idx / total_frames) if total_frames > 0 else 0.0
-            
-            time_text_placeholder.markdown(f"▶️ **{curr_str} / {dur_str}**")
-            progress_bar_placeholder.progress(prog_val)
-            video_placeholder.image(frame_to_draw, channels="BGR", use_container_width=True)
-            
-            # --- 3. Update Controls ---
-            controls_placeholder.markdown(f'<div class="video-controls"><span style="color:#fff; font-size:14px;">▶</span><span class="vc-time">{curr_str} / {dur_str}</span><div class="vc-progress-bar"><div class="vc-progress-fill" style="width:{prog_val*100}%"></div></div><span class="vc-speed">1.0x</span></div>', unsafe_allow_html=True)
-            
-            # --- 4. Update Metrics ---
-            fps_placeholder.markdown(f'<div class="fps-container"><p class="fps-label">FPS (Current)</p><p><span class="fps-value">{current_fps:.1f}</span><span class="fps-unit">fps</span></p></div>', unsafe_allow_html=True)
-            avg_fps_metric.metric("Average FPS", f"{current_fps:.1f} fps")
-            
-            car_placeholder.markdown(render_vehicle_card("Car", c_car, "blue"), unsafe_allow_html=True)
-            moto_placeholder.markdown(render_vehicle_card("Motorcycle", c_moto, "blue"), unsafe_allow_html=True)
-            bus_placeholder.markdown(render_vehicle_card("Bus", c_bus, "green"), unsafe_allow_html=True)
-            truck_placeholder.markdown(render_vehicle_card("Truck", c_truck, "green"), unsafe_allow_html=True)
-            
-            # --- 4. Update Table ---
-            hist = (frame_idx, f"{curr_s:.2f}", c_car, 0.85, c_moto, 0.9, c_bus, 0.88, c_truck, 0.9, c_tot)
-            st.session_state.results_history.insert(0, hist)
-            if len(st.session_state.results_history) > 6:
-                st.session_state.results_history.pop()
-            table_placeholder.markdown(_build_results_table(st.session_state.results_history, highlight_row_idx=0), unsafe_allow_html=True)
+            # --- 2. Update UI Preview (Throttled to prevent browser freeze) ---
+            if curr_time - last_ui_update_time > 0.1: # Max 10 FPS UI refresh
+                curr_s = frame_idx / fps_video if fps_video > 0 else 0
+                curr_str = time.strftime('%H:%M:%S', time.gmtime(curr_s))
+                prog_val = min(1.0, frame_idx / total_frames) if total_frames > 0 else 0.0
+                
+                time_text_placeholder.markdown(f"▶️ **{curr_str} / {dur_str}**")
+                progress_bar_placeholder.progress(prog_val)
+                
+                # Resize image for UI to reduce WebSocket payload and prevent freeze
+                h_ui, w_ui = frame_to_draw.shape[:2]
+                if h_ui > 480:
+                    scale = 480 / h_ui
+                    frame_to_draw_ui = cv2.resize(frame_to_draw, (int(w_ui * scale), 480))
+                else:
+                    frame_to_draw_ui = frame_to_draw
+                    
+                video_placeholder.image(frame_to_draw_ui, channels="BGR")
+                
+                # --- 3. Update Controls ---
+                controls_placeholder.markdown(f'<div class="video-controls"><span style="color:#fff; font-size:14px;">▶</span><span class="vc-time">{curr_str} / {dur_str}</span><div class="vc-progress-bar"><div class="vc-progress-fill" style="width:{prog_val*100}%"></div></div><span class="vc-speed">1.0x</span></div>', unsafe_allow_html=True)
+                
+                # --- 4. Update Metrics ---
+                fps_placeholder.markdown(f'<div class="fps-container"><p class="fps-label">FPS (Current)</p><p><span class="fps-value">{current_fps:.1f}</span><span class="fps-unit">fps</span></p></div>', unsafe_allow_html=True)
+                avg_fps_metric.metric("Average FPS", f"{current_fps:.1f} fps")
+                
+                car_placeholder.markdown(render_vehicle_card("Car", c_car, "blue"), unsafe_allow_html=True)
+                moto_placeholder.markdown(render_vehicle_card("Motorcycle", c_moto, "blue"), unsafe_allow_html=True)
+                bus_placeholder.markdown(render_vehicle_card("Bus", c_bus, "green"), unsafe_allow_html=True)
+                truck_placeholder.markdown(render_vehicle_card("Truck", c_truck, "green"), unsafe_allow_html=True)
+                
+                # --- 4. Update Table ---
+                hist = (frame_idx, f"{curr_s:.2f}", c_car, 0.85, c_moto, 0.9, c_bus, 0.88, c_truck, 0.9, c_tot)
+                st.session_state.results_history.insert(0, hist)
+                if len(st.session_state.results_history) > 6:
+                    st.session_state.results_history.pop()
+                table_placeholder.markdown(_build_results_table(st.session_state.results_history, highlight_row_idx=0), unsafe_allow_html=True)
 
-            # --- 5. Update Info & Progress ---
-            info_placeholder.markdown(render_video_info(st.session_state.uploaded_file_name, dur_str, fps_video, total_frames, frame_idx), unsafe_allow_html=True)
-            progress_bar.progress(prog_val)
-            
-            # Giảm tải CPU khi mock
-            time.sleep(0.01)
+                # --- 5. Update Info & Progress ---
+                info_placeholder.markdown(render_video_info(st.session_state.uploaded_file_name, dur_str, fps_video, total_frames, frame_idx), unsafe_allow_html=True)
+                progress_bar.progress(prog_val)
+                
+                last_ui_update_time = curr_time
 
         cap.release()
+
 
 if __name__ == "__main__":
     main()

@@ -17,10 +17,12 @@ def load_model(model_path: str = "yolo11n.pt"):
 
 def detect_frame(model, frame, conf: float = 0.25):
     """Chay YOLO11 tren 1 frame."""
+    import torch
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
     # model.predict: chay mo hinh tren 1 anh/frame
     # conf=0.25: chi giu lai box co do tin cay (confidence) >= 0.25 (25%)
     # verbose=False: tat log chi tiet in ra man hinh moi lan predict (cho gon)
-    results = model.predict(frame, conf=conf, verbose=False)
+    results = model.predict(frame, conf=conf, verbose=False, device=device)
 
     boxes = []                        # danh sach rong de chua ket qua dang de doc
     for r in results:                 # results la list (thuong chi co 1 phan tu vi chi dua 1 frame)

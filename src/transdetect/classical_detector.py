@@ -73,10 +73,4 @@ def detect_vehicle_candidates(gray_img, min_area=500, max_aspect_ratio=4.0):
         aspect_ratio = width / float(max(height, 1))
         if aspect_ratio <= max_aspect_ratio:
             bounding_boxes.append([x, y, x + width, y + height])
-    counts = {
-        "Car": len(bounding_boxes),
-        "Motorcycle": 0,
-        "Bus": 0,
-        "Truck": 0
-    }
-    return bounding_boxes, counts, combined_mask, threshold
+    return bounding_boxes, combined_mask, threshold

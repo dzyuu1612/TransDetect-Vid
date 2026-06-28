@@ -1,0 +1,747 @@
+
+TRƯỜNG ĐẠI HỌC NGOẠI NGỮ - TIN HỌC THÀNH PHỒ HỒ CHÍ MINH
+KHOA CÔNG NGHỆ THÔNG TIN
+
+BÁO CÁO KẾT THÚC HỌC PHẦN
+THỊ GIÁC MÁY TÍNH
+OBJECT DETECTION IN VIDEO BASED ON TRANSFORM
+Mã lớp học phần:253123056403
+Năm học: 2025 – 2026
+Học kỳ: 3
+Sinh viên thực hiện: 
+Nguyễn Bảo Duy24DH190309
+Trang Mai Quốc Khánh   24DH190081
+Nguyễn Đức Trí 24DH190272
+Lê Trần Nhật Huy24DH190312
+Thành phố Hồ Chí Minh, tháng … năm 2026
+Thành phố Hồ Chí Minh, tháng … năm 2026
+LỜI CẢM ƠN
+Nhóm xin chân thành cảm ơn giảng viên học phần Thị giác máy tính đã hướng dẫn kiến thức nền tảng, góp ý phương pháp và tạo điều kiện để nhóm hoàn thành đề tài. Nhóm cũng cảm ơn các tác giả, cộng đồng OpenCV và Ultralytics đã công bố tài liệu, thư viện phục vụ quá trình tìm hiểu và triển khai. Do giới hạn thời gian và dữ liệu thực nghiệm, báo cáo khó tránh khỏi thiếu sót; nhóm mong nhận được góp ý để tiếp tục hoàn thiện hệ thống.
+
+BẢNG ĐÁNH GIÁ MỨC ĐỘ HOÀN THÀNH CỦA CÁC THÀNH VIÊN
+STT
+Họ và tên
+MSSV
+Nhiệm vụ chính
+Mức độ hoàn thành
+1
+Trang Mai Quốc Khánh
+24DH190081
+Lý thuyết tiền xử lý, Thresholding, Sobel
+100%
+2
+Nguyễn Bảo Duy
+24DH190309
+Lucas-Kanade Optical Flow, pipeline truyền thống
+100%
+3
+Nguyễn Đức Trí
+24DH190272
+YOLO11, thực nghiệm và so sánh
+100%
+4
+Lê Trần Nhật Huy
+24DH190312
+Streamlit, Colab, biên soạn báo cáo
+100%
+Nhóm trưởng xác nhận: ____________________
+
+MỤC LỤC
+CHƯƠNG 1: GIỚI THIỆU7
+1.1 Giới thiệu đề tài7
+1.2 Nội dung thực hiện7
+1.3 Giới hạn đề tài7
+1.4 Bố cục báo cáo8
+CHƯƠNG 2: CƠ SỞ LÝ THUYẾT9
+2.1 Tổng quan bài toán phát hiện đối tượng trong video9
+2.2 Tiền xử lý ảnh9
+2.2.1 Histogram Equalization9
+2.2.2 Median Filter10
+2.3 Phép biến đổi phát hiện đối tượng (handcrafted transform)10
+2.3.1 Global Thresholding10
+2.3.2 Sobel Edge Detection10
+2.4 Theo dõi chuyển động với Lucas-Kanade Optical Flow11
+2.4.1 Các giả định11
+2.4.2 Từ brightness constancy đến Av = b11
+2.5 Mô hình học sâu YOLO11 — phép biến đổi học được12
+2.5.1 Kiến trúc trực quan YOLO1112
+2.5.2 Vì sao YOLO11 khắc phục nhược điểm truyền thống12
+2.6 So sánh hướng truyền thống và học sâu12
+2.7 Kết luận chương13
+CHƯƠNG 3: PHƯƠNG PHÁP ĐỀ XUẤT14
+3.1 Pipeline tổng thể14
+3.2 Pseudocode tiền xử lý14
+3.3 Pseudocode Threshold/Sobel14
+3.4 Pseudocode Lucas-Kanade Optical Flow15
+3.5 Nhánh YOLO11 (phép biến đổi học được)15
+3.6 Chiến lược lựa chọn phương pháp15
+CHƯƠNG 4: KẾT QUẢ THỰC NGHIỆM17
+4.1 Thiết kế thực nghiệm17
+4.2 Bảng so sánh hiệu năng17
+4.3 Khả năng nhận diện trong các điều kiện khó17
+4.4 Phân tích failure cases18
+4.5 Cách ghi nhận kết quả trong báo cáo nhóm18
+CHƯƠNG 5: KẾT LUẬN & HƯỚNG PHÁT TRIỂN19
+5.1 Kết luận19
+5.2 Ưu điểm và hạn chế19
+5.3 Hướng phát triển19
+PHỤ LỤC A: SOURCE CODE & MÔI TRƯỜNG TRIỂN KHAI21
+A.1 Cấu trúc thư mục dự án21
+A.2 Cài đặt và chạy trên VS Code21
+A.3 requirements.txt21
+A.4 Luồng Notebook Google Colab21
+TÀI LIỆU THAM KHẢO23
+
+
+DANH MỤC BẢNG BIỂU
+Bảng 2.1: So sánh hai bước tiền xử lý chính.10
+Bảng 2.2: So sánh Thresholding và Sobel.11
+Bảng 3.1: Input/Output của từng bước trong pipeline.14
+Bảng 3.2: Khuyến nghị chọn phương pháp theo tình huống.16
+Bảng 4.1: Cấu hình môi trường thực nghiệm.17
+Bảng 4.2: So sánh FPS và độ chính xác giữa pipeline truyền thống và YOLO11.17
+Bảng 4.3: Đánh giá định tính theo điều kiện môi trường.18
+Bảng 5.1: Tổng kết ưu điểm và hạn chế.19
+
+
+CHƯƠNG 1: GIỚI THIỆU
+1.1 Giới thiệu đề tài
+Trong những năm gần đây, sự phát triển mạnh mẽ của trí tuệ nhân tạo (AI) và Thị giác máy tính (Computer Vision) đã mở ra nhiều ứng dụng quan trọng trong đời sống và công nghiệp. Một trong những bài toán cốt lõi của lĩnh vực này là Object Detection (phát hiện đối tượng), nhằm xác định vị trí và phân loại các đối tượng xuất hiện trong hình ảnh hoặc video.
+Đối với dữ liệu video, bài toán trở nên phức tạp hơn do phải xử lý liên tục nhiều khung hình, đồng thời đối mặt với các vấn đề như chuyển động nhanh, che khuất (occlusion), điều kiện ánh sáng không ổn định và mật độ phương tiện cao — đặc biệt trong bối cảnh giao thông đô thị Việt Nam với nhiều loại phương tiện khác nhau (xe máy, ô tô, xe tải, xe buýt) cùng lưu thông.
+Trong nhiều thập kỷ, các phương pháp xử lý ảnh truyền thống sử dụng các phép biến đổi thủ công như cân bằng histogram (Histogram Equalization), lọc nhiễu (Median Filter), ngưỡng hóa (Global Thresholding) và phát hiện biên (Sobel Edge Detection) đã được ứng dụng rộng rãi. Mặc dù đơn giản về nguyên lý và dễ hiểu về mặt toán học, các phương pháp này vẫn bộc lộ nhiều hạn chế về độ chính xác và khả năng thích nghi với điều kiện ánh sáng phức tạp hay nền ảnh thay đổi liên tục.
+Sự phát triển của học sâu (Deep Learning) đã tạo ra những bước đột phá trong lĩnh vực phát hiện đối tượng. Mô hình YOLO11 — phiên bản tiên tiến trong họ mô hình YOLO — cho phép phát hiện và phân loại phương tiện giao thông theo thời gian thực với tốc độ và độ chính xác vượt trội. Về bản chất, các lớp tích chập trong backbone YOLO11 có thể xem là các phép biến đổi được học tự động từ dữ liệu, thay vì được con người định nghĩa bằng công thức cố định như các phương pháp truyền thống.
+Xuất phát từ những lý do trên, nhóm thực hiện đề tài “Phát hiện đối tượng trong video dựa trên phép biến đổi” nhằm nghiên cứu, cài đặt và so sánh hai hướng tiếp cận: pipeline xử lý ảnh truyền thống dựa trên các phép biến đổi thủ công và mô hình học sâu YOLO11, qua đó làm rõ sự khác biệt giữa “phép biến đổi do con người thiết kế” và “phép biến đổi do mạng học được từ dữ liệu”.
+1.2 Nội dung thực hiện
+Để đạt được mục tiêu nghiên cứu, nhóm thực hiện các nội dung chính sau:
+- Nghiên cứu cơ sở lý thuyết:
++ Tìm hiểu bài toán Object Detection trong lĩnh vực Thị giác máy tính.
++ Nghiên cứu các phép biến đổi ảnh: Histogram Equalization, Median Filter, Global Thresholding, Sobel Edge Detection.
++ Nghiên cứu nguyên lý hoạt động của thuật toán Lucas-Kanade Optical Flow.
++ Khảo sát kiến trúc và cơ chế hoạt động của mô hình YOLO11.
+- Xây dựng pipeline phát hiện đối tượng truyền thống:
++ Tiền xử lý ảnh: cân bằng histogram và khử nhiễu bằng Median Filter.
++ Phát hiện vùng đối tượng bằng Global Thresholding và Sobel Edge Detection.
++ Theo dõi chuyển động phương tiện qua các frame liên tiếp bằng Lucas-Kanade Optical Flow.
++ Hiển thị kết quả vùng phát hiện lên video đầu ra.
+- Xây dựng nhánh học sâu với YOLO11:
++ Tích hợp mô hình YOLO11 (n/s) đã được huấn luyện trước (Pre-trained Model).
++ Phát hiện và phân loại phương tiện giao thông trực tiếp trên từng frame.
++ Hiển thị Bounding Box và nhãn phân loại lên video đầu ra.
+- Thực nghiệm và đánh giá:
++ So sánh hai hướng tiếp cận theo tốc độ xử lý (FPS) và độ chính xác tương đối.
++ Đánh giá khả năng hoạt động trong các điều kiện khó (ban đêm, cảnh đông đúc).
++ Phân tích ưu điểm và hạn chế của từng phương pháp.
+- Cung cấp cấu trúc mã nguồn Python chạy được trên VS Code (local) và Google Colab (demo nhanh).
+1.3 Giới hạn đề tài
+Do giới hạn về thời gian, dữ liệu và tài nguyên tính toán, đề tài được thực hiện trong các phạm vi sau:
+* Về dữ liệu:
+- Sử dụng các video mẫu công khai hoặc video giao thông quay trực tiếp tại Việt Nam.
+- Chỉ tập trung vào một số nhóm phương tiện phổ biến như:
++ Xe máy (Motorcycle)
++ Ô tô (Car)
++ Xe buýt (Bus)
++ Xe tải (Truck)
+* Về phương pháp:
+- Sử dụng các phép biến đổi ảnh thủ công có sẵn trong thư viện OpenCV.
+- Không thực hiện huấn luyện mô hình từ đầu (Training from Scratch).
+- Chủ yếu sử dụng mô hình YOLO11 đã được huấn luyện trước (Pre-trained Model).
+* Về môi trường thực nghiệm:
+- Thực hiện trên Python.
+- Sử dụng các thư viện:
++ OpenCV
++ NumPy
++ Ultralytics (YOLO11)
++ Streamlit (giao diện demo)
+- Chạy thử nghiệm trên Google Colab hoặc máy tính cá nhân có GPU.
+* Về phạm vi đánh giá:
+- Đánh giá dựa trên kết quả phát hiện đối tượng trong video.
+- Không đi sâu vào các bài toán khác như:
++ Object Tracking nâng cao
++ Instance Segmentation
++ Pose Estimation
+1.4 Bố cục báo cáo
+Báo cáo được tổ chức thành năm chương như sau:
+Chương 1: Giới thiệu
+Trình bày bối cảnh nghiên cứu, lý do lựa chọn đề tài, mối liên hệ giữa phép biến đổi thủ công và mô hình học sâu, đóng góp của nhóm và cấu trúc tổng thể của báo cáo.
+Chương 2: Cơ sở lý thuyết
+Trình bày các kiến thức nền tảng liên quan đến bài toán Object Detection, xử lý video, các phép biến đổi ảnh (Histogram Equalization, Median Filter, Global Thresholding, Sobel), thuật toán Lucas-Kanade Optical Flow và kiến trúc mô hình YOLO11.
+Chương 3: Phương pháp đề xuất
+Mô tả pipeline đề xuất, pseudocode từng bước xử lý, input/output của các khối chức năng và chiến lược kết hợp hai hướng tiếp cận trong cùng một hệ thống.
+Chương 4: Kết quả thực nghiệm
+Trình bày thiết kế thực nghiệm, môi trường thử nghiệm, bảng so sánh hiệu năng giữa hai phương pháp và phân tích kết quả đạt được.
+Chương 5: Kết luận và Hướng phát triển
+Tổng kết các kết quả đã đạt được, đánh giá ưu điểm và hạn chế của từng phương pháp, đồng thời đề xuất các hướng phát triển trong tương lai.
+Phụ lục A: Cung cấp cấu trúc mã nguồn đầy đủ cho cả môi trường VS Code (local) và Google Colab (demo nhanh).
+
+CHƯƠNG 2: CƠ SỞ LÝ THUYẾT
+2.1 Tổng quan bài toán phát hiện đối tượng trong video
+Phát hiện đối tượng trong video là một bài toán quan trọng của lĩnh vực Thị giác máy tính. Mục tiêu của bài toán là xác định các đối tượng xuất hiện trong từng khung hình (frame) của video, đồng thời xác định vị trí của chúng thông qua các hộp giới hạn (bounding box). Trong phạm vi đề tài này, nhóm tập trung vào các đối tượng thuộc nhóm phương tiện giao thông như xe máy, ô tô, xe buýt và xe tải.
+Video có thể được xem là một chuỗi các ảnh liên tiếp theo thời gian, mỗi ảnh trong chuỗi gọi là một frame. Khi xử lý video, hệ thống thường đọc từng frame, áp dụng các bước tiền xử lý, phát hiện vùng nghi ngờ chứa đối tượng, sau đó hiển thị kết quả lên video đầu ra. So với xử lý ảnh tĩnh, phát hiện đối tượng trong video phức tạp hơn vì đối tượng có thể di chuyển liên tục, bị che khuất, thay đổi kích thước, thay đổi hướng nhìn hoặc bị ảnh hưởng bởi điều kiện ánh sáng.
+Như đã nêu ở mục 1.3, đề tài tiếp cận bài toán theo hai hướng song song: hướng thứ nhất là pipeline xử lý ảnh truyền thống dựa trên các phép biến đổi thủ công (cân bằng histogram, khử nhiễu, ngưỡng hóa, phát hiện biên) kết hợp Lucas-Kanade Optical Flow để theo dõi chuyển động; hướng thứ hai là mô hình học sâu YOLO11 để phát hiện và phân loại phương tiện trực tiếp trên từng frame. Việc trình bày song song hai hướng giúp người đọc vừa hiểu rõ các phép xử lý ảnh nền tảng, vừa có cơ sở so sánh với mô hình hiện đại trong bài toán thực tế.
+2.2 Tiền xử lý ảnh
+2.2.1 Histogram Equalization
+Histogram của ảnh xám cho biết số lượng pixel tại từng mức sáng từ 0–255. Khi ảnh thiếu sáng hoặc dư sáng, histogram thường dồn vào một vùng hẹp, làm giảm độ tương phản giữa phương tiện và nền. Histogram Equalization ánh xạ lại giá trị mức xám để phân bố cường độ trải rộng hơn, giúp chi tiết vùng tối/sáng tách rõ hơn — hỗ trợ tốt cho Thresholding và Sobel phía sau.
+Ví dụ, ảnh giao thông quay lúc chiều tối thường có nhiều pixel quanh mức xám 40–90; cân bằng histogram kéo giãn các mức này ra phạm vi rộng hơn, giúp đường viền xe, bánh xe và thân xe dễ được phát hiện hơn. Trong OpenCV, hàm cv2.equalizeHist dùng cho ảnh xám một kênh [2].
+2.2.2 Median Filter
+Median Filter là bộ lọc phi tuyến dùng khử nhiễu muối tiêu. Với mỗi pixel, thuật toán xét cửa sổ lân cận k×k, sắp xếp các giá trị cường độ và thay pixel trung tâm bằng giá trị trung vị. Khác Gaussian Blur, Median Filter giữ biên tốt hơn vì trung vị ít bị kéo lệch bởi điểm nhiễu cực sáng/tối.
+Kỹ thuật
+Mục đích
+Ưu điểm
+Lưu ý khi dùng
+Histogram Equalization
+Tăng tương phản ảnh xám
+Làm rõ vùng tối/sáng, hỗ trợ threshold
+Có thể khuếch đại nhiễu nếu ảnh quá nhiễu
+Median Filter
+Khử nhiễu muối tiêu
+Giữ biên tốt hơn lọc trung bình
+Kernel quá lớn làm mất chi tiết nhỏ
+Bảng 2.1: So sánh hai bước tiền xử lý chính.
+2.3 Phép biến đổi phát hiện đối tượng (handcrafted transform)
+2.3.1 Global Thresholding
+Thresholding biến ảnh xám thành ảnh nhị phân: nếu cường độ pixel lớn hơn ngưỡng T thì gán 255, ngược lại gán 0. Với Global Thresholding, toàn ảnh dùng chung một ngưỡng — đơn giản, nhanh, phù hợp khi ánh sáng tương đối đồng đều hoặc đã cân bằng histogram.
+Input: ảnh xám I, sai số dừng epsilon
+Chọn T ban đầu = trung bình mức xám của I
+Lặp:
+    G1 = tập pixel có I(x,y) > T
+    G2 = tập pixel có I(x,y) <= T
+    m1 = trung bình cường độ của G1
+    m2 = trung bình cường độ của G2
+    T_new = (m1 + m2) / 2
+Dừng khi |T_new - T| < epsilon
+Output: ảnh nhị phân B(x,y) = 255 nếu I(x,y) > T_new, ngược lại 0
+Ý tưởng: chia ảnh thành hai nhóm foreground/background dựa trên ngưỡng hiện tại, cập nhật ngưỡng bằng trung bình hai nhóm, hội tụ khi hai lần cập nhật gần như không đổi. OpenCV cung cấp cv2.threshold cho ngưỡng cố định và biến thể Otsu [3].
+2.3.2 Sobel Edge Detection
+Sobel là phép xấp xỉ đạo hàm bậc 1 theo hai hướng x, y. Nếu cường độ ảnh thay đổi mạnh tại một vị trí, gradient tại đó lớn, thường tương ứng biên vật thể. Với ảnh I: Gx = Kx  I, Gy = Ky  I (* là tích chập). Độ lớn gradient ≈ |Gx| + |Gy| hoặc √(Gx² + Gy²).
+Kx = [[-1, 0, 1],
+      [-2, 0, 2],
+      [-1, 0, 1]]
+ 
+Ky = [[-1, -2, -1],
+      [ 0,  0,  0],
+      [ 1,  2,  1]]
+Trong bài toán giao thông, Sobel nhấn mạnh viền phương tiện, bánh xe, thân xe và mép đường, nhưng nhạy với nhiễu nên cần Median Filter trước. OpenCV cung cấp cv2.Sobel [4].
+Tiêu chí
+Global Thresholding
+Sobel Edge Detection
+Đầu ra
+Mask nhị phân foreground/background
+Ảnh biên/gradient
+Mạnh khi
+Nền và vật thể khác độ sáng
+Vật thể có đường viền rõ
+Yếu khi
+Ánh sáng không đồng đều, bóng đổ
+Nhiễu cao, texture nền phức tạp
+Vai trò trong pipeline
+Tạo vùng ứng viên
+Bổ sung thông tin hình dạng/biên
+Bảng 2.2: So sánh Thresholding và Sobel.
+2.4 Theo dõi chuyển động với Lucas-Kanade Optical Flow
+Optical Flow ước lượng chuyển động biểu kiến của điểm ảnh giữa hai frame liên tiếp, giúp biết một vùng ứng viên có thực sự di chuyển hay chỉ là nhiễu tĩnh, đồng thời hỗ trợ vẽ quỹ đạo chuyển động của xe.
+2.4.1 Các giả định
+Độ sáng không đổi: I(x, y, t) = I(x + dx, y + dy, t + dt).
+Chuyển động nhỏ: vật thể không dịch chuyển quá xa giữa hai frame (hoặc dùng image pyramid cho chuyển động lớn).
+Tính nhất quán cục bộ: các pixel trong cửa sổ nhỏ quanh điểm đặc trưng có vector chuyển động gần giống nhau.
+2.4.2 Từ brightness constancy đến Av = b
+Khai triển Taylor bậc 1 cho I(x+u, y+v, t+1) cho phương trình optical flow cơ bản:
+Ixu + Iyv + It = 0
+Một pixel chỉ tạo một phương trình nhưng có hai ẩn (u, v) → thiếu ràng buộc. Lucas-Kanade lấy cửa sổ n pixel quanh điểm đặc trưng, giả định cùng chuyển động:
+[Ix1 Iy1]   [u]   [-It1]
+[Ix2 Iy2] * [v] = [-It2]
+...                ...
+[Ixn Iyn]          [-Itn]
+Viết gọn: Av = b, nghiệm bình phương tối thiểu: v = (ATA)-1 ATb
+Nếu AᵗA gần suy biến, điểm đó không đủ texture (vùng phẳng) → OpenCV thường chọn điểm góc tốt bằng Shi-Tomasi trước khi dùng cv2.calcOpticalFlowPyrLK [5], [6].
+2.5 Mô hình học sâu YOLO11 — phép biến đổi học được
+YOLO (You Only Look Once) là họ mô hình phát hiện đối tượng một giai đoạn (one-stage). Thay vì tách riêng bước đề xuất vùng và phân loại như các phương pháp hai giai đoạn, YOLO xử lý toàn ảnh trong một lần forward để dự đoán bounding box, class và confidence — phù hợp bài toán thời gian thực như video giao thông [7].
+Như đã nêu ở mục 1.3, có thể xem các lớp tích chập đầu của YOLO11 như một dạng "Sobel/Threshold tự học": thay vì người thiết kế chọn kernel Kx, Ky hay ngưỡng T cố định, mạng tự học các bộ lọc tối ưu từ dữ liệu huấn luyện, đồng thời học luôn cả ngữ nghĩa (đây là xe máy, xe tải hay xe buýt) — điều mà Thresholding/Sobel hoàn toàn không làm được.
+2.5.1 Kiến trúc trực quan YOLO11
+YOLO11 gồm ba phần: Backbone trích đặc trưng từ ảnh đầu vào (cạnh, texture, bộ phận xe, cấu trúc cấp cao); Neck kết hợp đặc trưng đa tỉ lệ để phát hiện cả xe máy nhỏ ở xa và xe buýt lớn ở gần; Head xuất bounding box, class label, confidence score theo kiểu anchor-free. So với YOLOv8, YOLO11 cải thiện backbone/neck để tăng khả năng trích đặc trưng và hỗ trợ nhiều tác vụ (detection, segmentation, pose, tracking, classification) [8], [9].
+2.5.2 Vì sao YOLO11 khắc phục nhược điểm truyền thống
+Pipeline Threshold/Sobel phụ thuộc mạnh vào ánh sáng, bóng đổ và tham số ngưỡng; YOLO11 học đặc trưng từ dữ liệu nên ổn định hơn trong cảnh phức tạp.
+Lucas-Kanade theo dõi điểm đặc trưng nhưng không tự hiểu class; YOLO11 trả về nhãn phương tiện trực tiếp.
+Phương pháp truyền thống khó xử lý che khuất và đông xe; YOLO11 học ngữ cảnh và đặc trưng đa tỉ lệ tốt hơn.
+Đổi lại, YOLO11 cần model pre-trained hoặc dữ liệu fine-tune, phụ thuộc thư viện deep learning và thường cần GPU để đạt FPS cao.
+2.6 So sánh hướng truyền thống và học sâu
+Pipeline truyền thống và YOLO11 có mục tiêu giống nhau là hỗ trợ phát hiện đối tượng trong video, nhưng cách tiếp cận khác nhau. Pipeline truyền thống dựa trên các phép toán xử lý ảnh rõ ràng, dễ giải thích và dễ quan sát kết quả trung gian: người đọc có thể xem trực tiếp ảnh xám, ảnh cân bằng histogram, ảnh nhị phân, ảnh biên và vector chuyển động để hiểu từng bước xử lý. Đây là ưu điểm lớn trong môi trường học tập, nhưng đổi lại pipeline truyền thống phụ thuộc nhiều vào điều kiện ảnh: khi ánh sáng thay đổi, nền phức tạp hoặc phương tiện bị che khuất, kết quả có thể giảm đáng kể.
+Ngược lại, YOLO11 là mô hình học sâu có khả năng học đặc trưng ngữ nghĩa từ dữ liệu: mô hình không chỉ tìm vùng nổi bật mà còn hiểu đối tượng thuộc lớp nào, nên phù hợp hơn với các hệ thống thực tế cần độ chính xác và tính ổn định cao. Nhược điểm của YOLO11 là khó giải thích từng bước hơn, cần thư viện deep learning, cần model pre-trained hoặc dữ liệu fine-tune, và thường yêu cầu GPU nếu muốn xử lý nhanh. Trong phạm vi đề tài, hai hướng tiếp cận không loại trừ nhau: pipeline truyền thống giúp giải thích nền tảng xử lý ảnh và chuyển động, còn YOLO11 đóng vai trò hướng nâng cấp hiện đại để tăng khả năng phát hiện và phân loại phương tiện.
+2.7 Kết luận chương
+Chương 2 đã trình bày các cơ sở lý thuyết quan trọng phục vụ cho việc xây dựng hệ thống phát hiện phương tiện trong video, gồm: tổng quan bài toán phát hiện đối tượng trong video, tiền xử lý ảnh (Histogram Equalization, Median Filter), các phép biến đổi phát hiện đối tượng (Global Thresholding, Sobel Edge Detection), theo dõi chuyển động bằng Lucas-Kanade Optical Flow, mô hình học sâu YOLO11 và so sánh giữa hướng truyền thống với hướng học sâu. Những kiến thức này là nền tảng để triển khai pipeline cụ thể trong Chương 3, trong đó từng khối xử lý sẽ được mô tả rõ về input, output, mã giả, cách hiện thực và kết quả đầu ra.
+
+CHƯƠNG 3: PHƯƠNG PHÁP ĐỀ XUẤT
+3.1 Pipeline tổng thể
+TransDetect-Vid gồm hai nhánh giải quyết cùng bài toán "phát hiện đối tượng trong video dựa trên phép biến đổi":
+Nhánh truyền thống (phép biến đổi thủ công): Video input → đọc frame → grayscale → histogram equalization → median filter → global thresholding → Sobel edge → contour/bounding box → Lucas-Kanade tracking → video output.
+Nhánh YOLO11 (phép biến đổi học được): Video input → YOLO11 inference → lọc class phương tiện → vẽ box/label → video output.
+Bước
+Input
+Output
+Ghi chú triển khai
+Đọc video
+Đường dẫn video/camera
+Frame BGR
+cv2.VideoCapture
+Tiền xử lý
+Frame BGR
+Gray/equalized/denoised
+Giảm nhiễu, tăng tương phản
+Threshold/Sobel
+Ảnh đã xử lý
+Binary mask + edge map
+Tạo vùng ứng viên
+Contour
+Mask/edge map
+Bounding boxes
+Lọc theo diện tích tối thiểu
+Lucas-Kanade
+Frame trước/sau + điểm đặc trưng
+Vector chuyển động
+Theo dõi sparse features
+YOLO11
+Frame BGR
+Box + class + confidence
+Nhánh phép biến đổi học được
+Bảng 3.1: Input/Output của từng bước trong pipeline.
+3.2 Pseudocode tiền xử lý
+Function PREPROCESS(frame):
+    gray = Convert BGR frame to grayscale
+    equalized = HistogramEqualization(gray)
+    denoised = MedianFilter(equalized, kernel_size=5)
+    return denoised
+Input: frame màu BGR từ video. Output: ảnh xám đã tăng tương phản và giảm nhiễu. Nếu bỏ qua cân bằng sáng, ngưỡng toàn cục dễ thất bại khi frame chênh sáng/tối. Nếu bỏ qua Median Filter, Sobel có thể tạo nhiều biên giả từ nhiễu.
+3.2.1 Hiện thực module tiền xử lý
+Listing 3.1 hiện thực trực tiếp hai phép biến đổi ở Mục 2.2. Ảnh màu được đưa về ma trận cường độ một kênh, sau đó cân bằng histogram và lọc trung vị. Các điều kiện kiểm tra kích thước kernel giúp tránh cấu hình không hợp lệ khi tái lập thực nghiệm.
+Listing 3.1: Mã nguồn src/transdetect/preprocessing.py.
+import cv2
+import numpy as np
+ 
+ 
+def histogram_equalization(gray_img: np.ndarray) -> np.ndarray:
+    """Tăng độ tương phản của ảnh xám bằng cân bằng histogram."""
+    if gray_img.ndim != 2:
+        raise ValueError("gray_img phải là ảnh xám một kênh.")
+    return cv2.equalizeHist(gray_img)
+ 
+ 
+def median_filter(gray_img: np.ndarray, kernel_size: int = 5) -> np.ndarray:
+    """Khử nhiễu muối tiêu, đồng thời bảo toàn biên tốt hơn lọc trung bình."""
+    if kernel_size < 3 or kernel_size % 2 == 0:
+        raise ValueError("kernel_size phải là số lẻ và không nhỏ hơn 3.")
+    return cv2.medianBlur(gray_img, kernel_size)
+ 
+ 
+def preprocess_frame(bgr_frame: np.ndarray, kernel_size: int = 5) -> np.ndarray:
+    """BGR -> grayscale -> histogram equalization -> median filter."""
+    if bgr_frame is None or bgr_frame.size == 0:
+        raise ValueError("Khung hình đầu vào rỗng.")
+ 
+    gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
+    equalized = histogram_equalization(gray)
+    denoised = median_filter(equalized, kernel_size)
+    return denoised
+Về mặt ánh xạ thuật toán, equalizeHist thực hiện phép ánh xạ tích lũy trên histogram, còn medianBlur thay mỗi phần tử bằng trung vị của lân cận k × k. Vì đầu ra vẫn là ma trận uint8 có cùng kích thước với ảnh xám đầu vào, module có thể nối trực tiếp với khối ngưỡng hóa và Sobel.
+3.3 Pseudocode Threshold/Sobel
+Function DETECT_CANDIDATES(gray):
+    T = IterativeGlobalThreshold(gray)
+    binary = ApplyThreshold(gray, T)
+    edge = SobelMagnitude(gray)
+    combined = OR(binary, edge > edge_threshold)
+    boxes = FindContours(combined)
+    boxes = Filter boxes by min_area, aspect_ratio
+    return boxes, combined
+Input: ảnh xám đã tiền xử lý. Output: danh sách bounding box ứng viên và ảnh mask kết hợp. Mask threshold giúp tìm vùng sáng/tối nổi bật; edge map giữ lại cấu trúc biên. Kết hợp hai tín hiệu giúp hệ thống bớt phụ thuộc vào một tiêu chí duy nhất; contour quá nhỏ bị loại để giảm false positive.
+3.3.1 Hiện thực module phát hiện truyền thống
+Listing 3.2 chuyển mã giả thành ba hàm độc lập: ước lượng ngưỡng lặp, tính độ lớn gradient Sobel và trích vùng liên thông. Việc tách hàm cho phép đo riêng ảnh nhị phân, ảnh biên và bounding box trong thí nghiệm.
+Listing 3.2: Mã nguồn src/transdetect/classical_detector.py.
+import cv2
+import numpy as np
+ 
+ 
+def iterative_global_threshold(gray_img, epsilon=1e-3, max_iter=100):
+    """Ước lượng ngưỡng T bằng cách lặp trung bình hai lớp mức xám."""
+    if gray_img.ndim != 2:
+        raise ValueError("gray_img phải là ảnh xám một kênh.")
+ 
+    threshold = float(np.mean(gray_img))
+    for _ in range(max_iter):
+        foreground = gray_img[gray_img > threshold]
+        background = gray_img[gray_img <= threshold]
+ 
+        # Nếu một lớp rỗng, không thể cập nhật trung bình hai lớp ổn định.
+        if foreground.size == 0 or background.size == 0:
+            break
+ 
+        mean_foreground = float(np.mean(foreground))
+        mean_background = float(np.mean(background))
+        new_threshold = (mean_foreground + mean_background) / 2.0
+ 
+        if abs(new_threshold - threshold) < epsilon:
+            threshold = new_threshold
+            break
+        threshold = new_threshold
+ 
+    binary_mask = np.where(gray_img > threshold, 255, 0).astype(np.uint8)
+    return binary_mask, threshold
+ 
+ 
+def sobel_edge_detection(gray_img, edge_threshold=50):
+    """Tính ||grad I||2 từ đạo hàm Sobel theo hai trục x và y."""
+    grad_x = cv2.Sobel(gray_img, cv2.CV_64F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(gray_img, cv2.CV_64F, 0, 1, ksize=3)
+    magnitude = np.sqrt(grad_x ** 2 + grad_y ** 2)
+    magnitude = np.uint8(np.clip(magnitude, 0, 255))
+    _, edge_mask = cv2.threshold(
+        magnitude, edge_threshold, 255, cv2.THRESH_BINARY
+    )
+    return edge_mask
+ 
+ 
+def detect_vehicle_candidates(gray_img, min_area=500, max_aspect_ratio=4.0):
+    """Kết hợp mask mức xám và mask biên để trích bounding box ứng viên."""
+    binary_mask, threshold = iterative_global_threshold(gray_img)
+    edge_mask = sobel_edge_detection(gray_img, edge_threshold=40)
+    combined_mask = cv2.bitwise_or(binary_mask, edge_mask)
+ 
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    dilated_mask = cv2.dilate(combined_mask, kernel, iterations=1)
+    contours, _ = cv2.findContours(
+        dilated_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+ 
+    bounding_boxes = []
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area <= min_area:
+            continue
+ 
+        x, y, width, height = cv2.boundingRect(contour)
+        aspect_ratio = width / float(max(height, 1))
+        if aspect_ratio <= max_aspect_ratio:
+            bounding_boxes.append([x, y, x + width, y + height])
+ 
+    return bounding_boxes, combined_mask, threshold
+Biến threshold trong vòng lặp tương ứng trực tiếp với T; hai mảng foreground và background là G1, G2; điều kiện abs(new_threshold - threshold) < epsilon là tiêu chuẩn hội tụ. Ở nhánh Sobel, grad_x và grad_y lần lượt xấp xỉ Ix, Iy, còn sqrt(grad_x² + grad_y²) là chuẩn Euclid của gradient. Phép OR giữ pixel được ít nhất một trong hai tín hiệu xác nhận; dilation nối các đoạn biên gần nhau trước khi tìm contour.
+3.4 Pseudocode Lucas-Kanade Optical Flow
+Function TRACK(prev_gray, curr_gray, prev_points):
+    if prev_points is empty:
+        prev_points = GoodFeaturesToTrack(prev_gray)
+    curr_points, status = calcOpticalFlowPyrLK(prev_gray, curr_gray, prev_points)
+    valid_prev = prev_points where status == 1
+    valid_curr = curr_points where status == 1
+    motion_vectors = valid_curr - valid_prev
+    return valid_curr, motion_vectors
+Input: hai frame xám liên tiếp và tập điểm cần theo dõi. Output: điểm mới và vector chuyển động. Với video giao thông cố định camera, hướng vector cho biết luồng di chuyển chính; box ứng viên không có điểm chuyển động đáng kể có thể xem là nhiễu/vật thể tĩnh.
+3.4.1 Hiện thực bộ theo dõi Lucas–Kanade
+Listing 3.3 đóng gói trạng thái điểm đặc trưng trong một lớp. Khi tập điểm rỗng, Shi–Tomasi được gọi để khởi tạo; các frame sau sử dụng Pyramidal Lucas–Kanade và chỉ giữ các điểm có status = 1.
+Listing 3.3: Mã nguồn src/transdetect/optical_flow.py.
+import cv2
+import numpy as np
+ 
+ 
+class LucasKanadeTracker:
+    def __init__(self):
+        self.feature_params = dict(
+            maxCorners=100,
+            qualityLevel=0.3,
+            minDistance=7,
+            blockSize=7,
+        )
+        self.lk_params = dict(
+            winSize=(15, 15),
+            maxLevel=2,
+            criteria=(
+                cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
+                10,
+                0.03,
+            ),
+        )
+        self.prev_points = None
+ 
+    def reset(self):
+        """Buộc bộ theo dõi khởi tạo lại điểm đặc trưng ở frame kế tiếp."""
+        self.prev_points = None
+ 
+    def track_features(self, prev_gray, curr_gray):
+        """Trả về điểm hiện tại và vector v = p(t+1) - p(t)."""
+        if self.prev_points is None or len(self.prev_points) == 0:
+            self.prev_points = cv2.goodFeaturesToTrack(
+                prev_gray, mask=None, **self.feature_params
+            )
+ 
+        if self.prev_points is None or len(self.prev_points) == 0:
+            return np.empty((0, 2)), np.empty((0, 2))
+ 
+        curr_points, status, _ = cv2.calcOpticalFlowPyrLK(
+            prev_gray,
+            curr_gray,
+            self.prev_points,
+            None,
+            **self.lk_params,
+        )
+        if curr_points is None or status is None:
+            self.reset()
+            return np.empty((0, 2)), np.empty((0, 2))
+ 
+        valid = status.ravel() == 1
+        valid_prev = self.prev_points.reshape(-1, 2)[valid]
+        valid_curr = curr_points.reshape(-1, 2)[valid]
+        motion_vectors = valid_curr - valid_prev
+ 
+        self.prev_points = valid_curr.reshape(-1, 1, 2)
+        return valid_curr, motion_vectors
+Trong triển khai, calcOpticalFlowPyrLK giải hệ bình phương tối thiểu cục bộ ở nhiều mức kim tự tháp ảnh. Hiệu valid_curr - valid_prev là ước lượng vector (u, v). Việc ép mask trạng thái về một chiều bằng status.ravel() bảo đảm ánh xạ đúng từng điểm và tránh sai lệch hình dạng mảng khi tính vector chuyển động.
+3.5 Nhánh YOLO11 (phép biến đổi học được)
+Function YOLO_DETECT(frame, model):
+    results = model.predict(frame, conf=0.25, iou=0.45)
+    boxes = []
+    for detection in results:
+        if detection.class in vehicle_classes:
+            boxes.append([x1, y1, x2, y2, class_name, confidence])
+    return boxes
+Input: frame BGR/RGB. Output: danh sách box, nhãn phương tiện và confidence. Với COCO pre-trained, các class dùng ngay gồm bicycle, car, motorcycle, bus, truck. Để nhận dạng tốt hơn giao thông Việt Nam, cần fine-tune YOLO11 trên tập dữ liệu địa phương (xe máy, xe ba gác, xe tải nhỏ, cảnh ban đêm, camera góc cao).
+3.5.1 Hiện thực module phát hiện YOLO11
+Listing 3.4 cung cấp giao diện thống nhất cho nhánh học sâu: đầu vào là một frame BGR, đầu ra là danh sách bounding box, nhãn và độ tin cậy. Các lớp được lọc theo chỉ số của bộ nhãn MS COCO dùng bởi mô hình.
+Listing 3.4: Mã nguồn src/transdetect/yolo_detector.py.
+from ultralytics import YOLO
+ 
+ 
+class Yolo11VehicleDetector:
+    def __init__(self, model_path="yolo11n.pt"):
+        """Khởi tạo YOLO11 và giới hạn các lớp phương tiện trong MS COCO."""
+        self.model = YOLO(model_path)
+        # 2: car, 3: motorcycle, 5: bus, 7: truck
+        self.target_classes = {2, 3, 5, 7}
+ 
+    def detect_frame(self, bgr_frame, conf_threshold=0.25, iou_threshold=0.45):
+        """Suy luận một frame và chuẩn hóa kết quả thành danh sách từ điển."""
+        results = self.model.predict(
+            bgr_frame,
+            conf=conf_threshold,
+            iou=iou_threshold,
+            verbose=False,
+        )
+        detected_vehicles = []
+ 
+        for result in results:
+            for box in result.boxes:
+                class_id = int(box.cls[0])
+                if class_id not in self.target_classes:
+                    continue
+ 
+                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                detected_vehicles.append(
+                    {
+                        "bbox": [x1, y1, x2, y2],
+                        "class": self.model.names[class_id],
+                        "confidence": float(box.conf[0]),
+                    }
+                )
+ 
+        return detected_vehicles
+Khác với nhánh truyền thống, các phép biến đổi đặc trưng nằm trong tham số đã học của mô hình. Hai ngưỡng conf và IoU điều khiển hậu xử lý: conf loại dự đoán yếu, còn IoU tham gia loại các hộp chồng lấp. Cấu trúc từ điển đầu ra giúp khối hiển thị và ghi CSV không phụ thuộc trực tiếp vào kiểu dữ liệu nội bộ của Ultralytics.
+3.6 Chiến lược lựa chọn phương pháp
+Tình huống
+Nên ưu tiên
+Lý do
+Sinh viên mới học CV
+Pipeline truyền thống
+Dễ hiểu, thấy rõ ảnh trung gian
+Demo nhanh không GPU
+Truyền thống hoặc YOLO11n CPU
+Giảm phụ thuộc phần cứng
+Cảnh đông xe, che khuất
+YOLO11
+Học đặc trưng ngữ nghĩa tốt hơn
+Hệ thống thực tế cần ổn định
+YOLO11 + tracking + logging
+Dễ mở rộng, dễ giám sát
+Bảng 3.2: Khuyến nghị chọn phương pháp theo tình huống.
+
+CHƯƠNG 4: KẾT QUẢ THỰC NGHIỆM
+4.1 Thiết kế thực nghiệm
+Báo cáo thiết kế khung đánh giá có thể tái lập: nhóm thay video mẫu bằng dữ liệu tự thu thập, chạy cùng pipeline để điền số liệu thực tế. Bảng dưới cung cấp cấu trúc đánh giá và giá trị minh họa cho demo lớp học; khi nộp chính thức, cần thay bằng số đo thực từ máy và dataset của nhóm.
+Thành phần
+Cấu hình đề xuất
+Thiết bị
+Laptop CPU 4–8 cores; tùy chọn GPU NVIDIA/Colab T4 cho YOLO11
+Ngôn ngữ
+Python 3.10+
+Thư viện
+OpenCV, NumPy, Ultralytics, Streamlit
+Video
+720p hoặc 1080p, camera cố định, 30 FPS
+Metrics
+FPS, Precision tương đối, Recall tương đối, số false positive, độ ổn định tracking
+Bảng 4.1: Cấu hình môi trường thực nghiệm.
+4.2 Bảng so sánh hiệu năng
+Phương pháp
+FPS CPU
+FPS GPU
+Độ chính xác tương đối
+Ghi chú
+Threshold + Sobel + LK
+18–30
+Không cần
+Trung bình
+Nhanh, dễ giải thích, nhạy ánh sáng
+YOLO11n
+6–15
+45–100
+Cao đến rất cao
+Nhẹ, phù hợp demo nhanh
+YOLO11s/m fine-tune
+2–8
+25–70
+Rất cao
+Cần dữ liệu gán nhãn và GPU
+Bảng 4.2: So sánh FPS và độ chính xác giữa pipeline truyền thống và YOLO11.
+Pipeline truyền thống có lợi thế tốc độ trên CPU, phù hợp minh họa lý thuyết, nhưng độ chính xác phụ thuộc nhiều vào điều kiện quay. YOLO11 chậm hơn trên CPU nhưng vượt trội khi có GPU và ổn định hơn với cảnh phức tạp.
+4.3 Khả năng nhận diện trong các điều kiện khó
+Điều kiện
+Pipeline truyền thống
+YOLO11
+Nhận xét
+Ban ngày, nền ổn định
+Tốt
+Rất tốt
+Cả hai đều chạy được
+Ban đêm
+Yếu
+Trung bình đến tốt nếu có dữ liệu
+Cần fine-tune hoặc tăng sáng
+Mưa/nhiễu camera
+Yếu
+Trung bình
+Median Filter chỉ xử lý nhiễu nhỏ
+Cảnh đông đúc
+Trung bình đến yếu
+Tốt hơn
+YOLO11 xử lý che khuất tốt hơn nhưng vẫn cần tracking
+Camera rung
+Yếu
+Trung bình
+Cần ổn định video hoặc motion compensation
+Bảng 4.3: Đánh giá định tính theo điều kiện môi trường.
+4.4 Phân tích failure cases
+Bóng đổ dài hoặc vùng phản chiếu có thể bị threshold xem là phương tiện.
+Sobel tạo nhiều biên giả khi nền có texture mạnh (hàng rào, biển quảng cáo, vạch đường dày).
+Lucas-Kanade mất điểm theo dõi khi xe bị che khuất, chuyển động quá nhanh hoặc vùng xe ít texture.
+YOLO11 pre-trained trên COCO có thể nhầm class trong bối cảnh địa phương nếu xe nhỏ, góc camera lạ hoặc ánh sáng ban đêm.
+4.5 Cách ghi nhận kết quả trong báo cáo nhóm
+Khi chạy thực nghiệm thật, nên lưu video output, file CSV thống kê và ảnh chụp frame tiêu biểu. Với mỗi cấu hình, ghi rõ model, độ phân giải input, conf threshold, thiết bị chạy, số frame xử lý và FPS trung bình. Nếu fine-tune YOLO11, bổ sung số ảnh train/validation/test, số epoch và metrics mAP50, mAP50-95.
+
+4.6 Đối chiếu lý thuyết, mã nguồn và tiêu chí kiểm chứng
+Mã nguồn được tổ chức sao cho mỗi đại lượng toán học quan trọng đều có một biểu diễn có thể quan sát hoặc ghi lại. Cách tổ chức này hỗ trợ tái lập thí nghiệm và phân biệt lỗi thuật toán với lỗi dữ liệu đầu vào.
+Histogram/Median: kiểm tra kích thước ảnh không đổi, kiểu dữ liệu uint8 và so sánh độ phân tán mức xám trước–sau tiền xử lý.
+Ngưỡng lặp: lưu dãy T qua từng vòng lặp; dãy phải dừng khi |T(k+1) − T(k)| < epsilon hoặc đạt max_iter. Mask đầu ra chỉ chứa 0 và 255.
+Sobel/Contour: đối chiếu grad_x, grad_y và magnitude trên ảnh tổng hợp có biên dọc/ngang biết trước; mọi bounding box phải nằm trong kích thước frame và có diện tích lớn hơn min_area.
+Lucas–Kanade: trên cặp ảnh dịch chuyển nhân tạo (dx, dy), trung vị các motion vector hợp lệ cần gần vector dịch chuyển đã tạo; báo cáo thêm tỷ lệ điểm có status = 1.
+YOLO11: ghi model, kích thước ảnh, conf, IoU, thiết bị và thời gian suy luận; chỉ tính các lớp phương tiện đã khai báo để bảo đảm nhất quán.
+Các kiểm tra trên là tiêu chí nghiệm thu kỹ thuật, không thay thế số liệu đánh giá trên tập video thật. Khi hoàn thiện báo cáo, nhóm cần thay các giá trị minh họa ở Mục 4.2 bằng FPS, precision, recall hoặc mAP đo trên cùng một tập dữ liệu và cấu hình phần cứng.
+CHƯƠNG 5: KẾT LUẬN & HƯỚNG PHÁT TRIỂN
+5.1 Kết luận
+Báo cáo trình bày TransDetect-Vid theo hướng kết hợp phép biến đổi ảnh thủ công và phép biến đổi học được (YOLO11) để giải quyết cùng một bài toán: phát hiện đối tượng trong video. Pipeline truyền thống giúp người học hiểu cách hệ thống thị giác máy tính được xây từ các phép toán cơ bản: tăng tương phản, khử nhiễu, ngưỡng hóa, phát hiện biên và theo dõi chuyển động. Nhánh YOLO11 cho thấy cách tiếp cận hiện đại hơn, tự học các phép biến đổi tương tự nhưng mạnh hơn về ngữ nghĩa.
+Điểm quan trọng nhất không phải là chọn một thuật toán duy nhất, mà là hiểu quan hệ giữa dữ liệu đầu vào, giả định thuật toán và điều kiện triển khai: Thresholding nhanh nhưng nhạy ánh sáng; Sobel dễ hiểu nhưng nhạy nhiễu; Lucas-Kanade theo dõi tốt điểm đặc trưng nhưng cần chuyển động nhỏ và texture đủ mạnh; YOLO11 mạnh hơn về nhận dạng ngữ nghĩa nhưng cần dữ liệu, GPU và quy trình triển khai chuyên nghiệp.
+5.2 Ưu điểm và hạn chế
+Hướng tiếp cận
+Ưu điểm
+Hạn chế
+Truyền thống (phép biến đổi thủ công)
+Dễ học, nhẹ, debug từng bước, chạy CPU
+Kém ổn định trong ánh sáng xấu, đông xe, che khuất
+YOLO11 (phép biến đổi học được)
+Phát hiện và phân loại trực tiếp, độ chính xác cao
+Cần model, dữ liệu fine-tune, phần cứng
+Kết hợp
+Có baseline giải thích được và nhánh nâng cấp mạnh
+Cần thiết kế pipeline rõ để tránh phức tạp hóa
+Bảng 5.1: Tổng kết ưu điểm và hạn chế.
+5.3 Hướng phát triển
+Chuẩn hóa pipeline sản xuất: tách rõ module ingestion, inference, tracking, post-processing, logging, export dữ liệu.
+Fine-tune YOLO11 trên dữ liệu giao thông Việt Nam: xe máy, xe tải nhỏ, xe buýt, cảnh ban đêm, mưa, camera góc cao.
+Bổ sung tracking chuyên nghiệp: kết hợp YOLO11 với ByteTrack hoặc DeepSORT để giữ ID phương tiện qua nhiều frame.
+Triển khai API và dashboard: FastAPI/Streamlit, REST endpoint, lưu kết quả vào PostgreSQL hoặc Parquet.
+Mở rộng quy mô nhiều camera: message queue (Kafka/Redis Streams), xử lý batch/stream, giám sát FPS theo camera.
+MLOps cho Computer Vision: version dataset/model/config, tự động đánh giá model trước khi deploy, theo dõi drift.
+Tối ưu triển khai edge/cloud: xuất ONNX/TensorRT, container Docker, đo latency theo phần cứng, fallback khi GPU quá tải.
+Đảm bảo đạo đức và riêng tư: làm mờ biển số/khuôn mặt nếu cần, phân quyền truy cập video, chỉ lưu metadata thống kê.
+
+PHỤ LỤC A: SOURCE CODE & MÔI TRƯỜNG TRIỂN KHAI
+A.1 Cấu trúc thư mục dự án
+transdetect_vid_source/
+├── requirements.txt
+├── README.md
+├── main.py                 # Điểm chạy chính qua giao diện dòng lệnh (CLI)
+├── app_streamlit.py        # Web dashboard hiển thị kết quả cho người dùng
+├── data/
+├── outputs/
+├── notebooks/
+│   └── TransDetect_Vid_Colab_Demo.ipynb
+└── src/
+    └── transdetect/
+        ├── __init__.py
+        ├── config.py
+        ├── preprocessing.py
+        ├── classical_detector.py  # Cài đặt Thresholding và Sobel
+        ├── optical_flow.py        # Theo dõi chuyển động Lucas-Kanade
+        ├── yolo_detector.py       # Cài đặt mô hình học sâu YOLO11
+        ├── visualization.py
+        └── pipeline.py
+A.2 Cài đặt và chạy trên VS Code
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+ 
+# Chạy pipeline truyền thống
+python main.py --input data/sample.mp4 --method classical --output outputs/classical_out.mp4
+ 
+# Chạy YOLO11 nano
+python main.py --input data/sample.mp4 --method yolo --model yolo11n.pt --output outputs/yolo_out.mp4
+ 
+# Chạy giao diện Streamlit
+streamlit run app_streamlit.py
+A.3 requirements.txt
+opencv-python>=4.9.0
+numpy>=1.26.0
+pandas>=2.2.0
+streamlit>=1.36.0
+ultralytics>=8.3.0
+pillow>=10.0.0
+tqdm>=4.66.0
+pyngrok>=7.1.0
+A.4 Luồng Notebook Google Colab
+# Cell 1 - Clone repo
+# Tải thư mục transdetect-vid của nhóm lên /content trước khi chạy
+%cd transdetect-vid
+ 
+# Cell 2 - Cài đặt thư viện
+!pip install -r requirements.txt
+ 
+# Cell 3 - Tải model YOLO11 pre-trained
+from ultralytics import YOLO
+model = YOLO("yolo11n.pt")
+ 
+# Cell 4 - Chạy demo CLI
+!python main.py --input data/sample.mp4 --method yolo --model yolo11n.pt --output outputs/demo.mp4
+ 
+# Cell 5 - Chạy Streamlit public bằng pyngrok
+!streamlit run app_streamlit.py --server.port 8501 > streamlit.log 2>&1 &
+from pyngrok import ngrok
+public_url = ngrok.connect(8501)
+print(public_url)
+ 
+# Cell 6 - Nếu không dùng ngrok, chạy localtunnel
+!npm install -g localtunnel
+!lt --port 8501
+
+TÀI LIỆU THAM KHẢO
+[1] R. C. Gonzalez and R. E. Woods, Digital Image Processing, 4th ed. Pearson, 2018.
+[2] OpenCV, "Histogram Equalization," OpenCV Documentation. Available: https://docs.opencv.org/master/d4/d1b/tutorial_histogram_equalization.html
+[3] OpenCV, "Image Thresholding," OpenCV Documentation. Available: https://docs.opencv.org/master/d7/d4d/tutorial_py_thresholding.html
+[4] OpenCV, "Sobel Derivatives," OpenCV Documentation. Available: https://docs.opencv.org/4.x/d2/d2c/tutorial_sobel_derivatives.html
+[5] B. D. Lucas and T. Kanade, "An iterative image registration technique with an application to stereo vision," in Proc. IJCAI, 1981, pp. 674–679. Available: https://www.ri.cmu.edu/pub_files/pub3/lucas_bruce_d_1981_2/lucas_bruce_d_1981_2.pdf
+[6] J.-Y. Bouguet, "Pyramidal implementation of the Lucas Kanade feature tracker," Intel Corporation, 2001. Available: http://robots.stanford.edu/cs223b04/algo_tracking.pdf
+[7] J. Redmon, S. Divvala, R. Girshick, and A. Farhadi, "You Only Look Once: Unified, Real-Time Object Detection," in Proc. CVPR, 2016. Available: https://arxiv.org/abs/1506.02640
+[8] Ultralytics, "YOLOv8," Ultralytics Documentation. Available: https://docs.ultralytics.com/models/yolov8/
+[9] Ultralytics, "YOLO11," Ultralytics Documentation. Available: https://docs.ultralytics.com/models/yolo11/
