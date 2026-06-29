@@ -465,7 +465,7 @@ def main():
                     })
 
             # --- 2. Update UI Preview (Throttled to prevent browser freeze) ---
-            if curr_time - last_ui_update_time > 0.1: # Max 10 FPS UI refresh
+            if curr_time - last_ui_update_time > 0.03: # Max ~33 FPS UI refresh
                 curr_s = frame_idx / fps_video if fps_video > 0 else 0
                 curr_str = time.strftime('%H:%M:%S', time.gmtime(curr_s))
                 prog_val = min(1.0, frame_idx / total_frames) if total_frames > 0 else 0.0
@@ -507,6 +507,14 @@ def main():
                 progress_bar.progress(prog_val)
                 
                 last_ui_update_time = curr_time
+
+            # --- 6. Real-time Throttling ---
+            # Wait to match the original video FPS
+            if fps_video > 0:
+                expected_elapsed = (frame_idx - start_frame_idx) / fps_video
+                actual_elapsed = time.time() - start_time
+                if actual_elapsed < expected_elapsed:
+                    time.sleep(expected_elapsed - actual_elapsed)
 
         cap.release()
 
