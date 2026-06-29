@@ -51,7 +51,7 @@ def sobel_edge_detection(gray_img, edge_threshold=50):
     return edge_mask
 
 
-def detect_vehicle_candidates(gray_img, min_area=500, max_aspect_ratio=4.0):
+def detect_vehicle_candidates(gray_img, min_area=500, max_area=150000, max_aspect_ratio=4.0):
     """Kết hợp mask mức xám và mask biên để trích bounding box ứng viên."""
     binary_mask, threshold = iterative_global_threshold(gray_img)
     edge_mask = sobel_edge_detection(gray_img, edge_threshold=40)
@@ -60,13 +60,13 @@ def detect_vehicle_candidates(gray_img, min_area=500, max_aspect_ratio=4.0):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     dilated_mask = cv2.dilate(combined_mask, kernel, iterations=1)
     contours, _ = cv2.findContours(
-        dilated_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        dilated_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
     )
 
     bounding_boxes = []
     for contour in contours:
         area = cv2.contourArea(contour)
-        if area <= min_area:
+        if area <= min_area or area >= max_area:
             continue
 
         x, y, width, height = cv2.boundingRect(contour)
