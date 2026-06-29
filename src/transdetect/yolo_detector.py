@@ -14,30 +14,16 @@ model không cung cấp tên lớp.
 
 from ultralytics import YOLO
 
-
-# Tên các lớp phương tiện cần giữ (chuẩn hóa chữ thường).
-VEHICLE_NAMES = {"bicycle", "car", "motorcycle", "motorbike", "bus", "truck"}
-
-# Phương án dự phòng theo COCO ID khi không tra được tên lớp.
-COCO_VEHICLE_IDS = {1, 2, 3, 5, 7}
-
-
 class Yolo11VehicleDetector:
     def __init__(self, model_path="yolo11n.pt"):
-        """Khởi tạo YOLO11 và xác định tập lớp phương tiện cần giữ."""
+        """Khởi tạo YOLO11 và giới hạn các lớp phương tiện trong MS COCO."""
         self.model = YOLO(model_path)
         import torch
         if torch.cuda.is_available():
             self.model.to("cuda:0")
-        # Tập COCO ID dùng khi model trả về đúng bộ nhãn MS COCO.
-        self.target_classes = COCO_VEHICLE_IDS
-
-    def _is_vehicle(self, class_id):
-        """Quyết định một lớp có phải phương tiện không, ưu tiên theo tên."""
-        names = getattr(self.model, "names", None)
-        if names and class_id in names:
-            return names[class_id].lower() in VEHICLE_NAMES
-        return class_id in self.target_classes
+            
+        # 2: car, 3: motorcycle, 5: bus, 7: truck
+        self.target_classes = {2, 3, 5, 7}
 
     def detect_frame(self, bgr_frame, conf_threshold=0.25, iou_threshold=0.45):
         """Suy luận một frame và chuẩn hóa kết quả thành danh sách từ điển."""
@@ -61,7 +47,7 @@ class Yolo11VehicleDetector:
             
             for i in range(len(boxes)):
                 class_id = int(cls_arr[i])
-                if not self._is_vehicle(class_id):
+                if class_id not in self.target_classes:
                     continue
 
                 x1, y1, x2, y2 = map(int, xyxy_arr[i])
