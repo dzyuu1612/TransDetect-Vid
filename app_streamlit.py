@@ -422,7 +422,7 @@ def main():
             if st.session_state.method_selector == "Classical Pipeline":
                 pre = preprocessing.preprocess_frame(frame, config.MEDIAN_KERNEL_SIZE)
                 boxes, _, _ = classical_detector.detect_vehicle_candidates(
-                    pre, config.MIN_CONTOUR_AREA, config.MAX_ASPECT_RATIO
+                    pre, min_area=config.MIN_CONTOUR_AREA, max_aspect_ratio=config.MAX_ASPECT_RATIO
                 )
                 counts = {"Car": len(boxes), "Motorcycle": 0, "Bus": 0, "Truck": 0}
                 frame_to_draw = visualization.draw_classical_boxes(frame.copy(), boxes)
