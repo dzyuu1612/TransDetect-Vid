@@ -41,7 +41,7 @@ def run_classical(input_path, output_path):
             break
 
         pre = preprocessing.preprocess_frame(frame, config.MEDIAN_KERNEL_SIZE)
-        boxes, _, _, _ = classical_detector.detect_vehicle_candidates(
+        boxes, _, _ = classical_detector.detect_vehicle_candidates(
             pre, config.MIN_CONTOUR_AREA, config.MAX_ASPECT_RATIO
         )
         output = visualization.draw_classical_boxes(frame, boxes)

@@ -15,7 +15,7 @@ Dự án cung cấp cả giao diện dòng lệnh (CLI) và giao diện Web (Str
 - **`train_yolo.py`**: Script dùng để huấn luyện (train) và đánh giá (evaluate) mô hình YOLO11 trên dataset tùy chỉnh của bạn.
 - **`yolo_detector.py`**: Các hàm tiện ích hỗ trợ nhận diện bằng YOLO (tải mô hình, phát hiện trên frame, vẽ bounding box).
 - **`classical_detector.py`**: Pipeline phát hiện truyền thống, sử dụng phương pháp ngưỡng (thresholding) lặp tự động kết hợp với đạo hàm Sobel để tìm ứng viên vùng (candidate boxes).
-- **`preprocessing.py`**: Chứa các bước tiền xử lý ảnh cho phương pháp truyền thống (chuyển ảnh xám, cân bằng sáng Histogram, lọc nhiễu Gaussian).
+- **`preprocessing.py`**: Chứa các bước tiền xử lý ảnh cho phương pháp truyền thống (chuyển ảnh xám, cân bằng sáng Histogram, lọc nhiễu Median (Median Filter)).
 - **`optical_flow.py`**: Ứng dụng thuật toán Lucas-Kanade (Optical Flow) để theo dõi các điểm chuyển động liên tục giữa các frame (cho phương pháp truyền thống).
 - **`run_demo.py`**: Một script nhỏ để chạy thử mô hình YOLO trực tiếp trên 1 ảnh kiểm thử và lưu kết quả.
 
@@ -37,7 +37,7 @@ pip install numpy opencv-python ultralytics streamlit
 Cách nhanh nhất và trực quan nhất để thử nghiệm là dùng Web UI. Giao diện hỗ trợ tải lên cả Video (`.mp4`, `.avi`, `.mov`) và Ảnh (`.jpg`, `.png`).
 
 ```bash
-streamlit run app.py
+streamlit run app_streamlit.py
 ```
 > **Lưu ý:** Lệnh này sẽ mở ra một trang web trên trình duyệt. Tại đây bạn có thể kéo thả file vào để nhận diện và điều chỉnh độ tin cậy (Confidence) ngay trên thanh trượt.
 

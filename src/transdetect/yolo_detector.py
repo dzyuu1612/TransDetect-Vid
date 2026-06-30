@@ -8,7 +8,7 @@ Tương ứng Listing 3.4 trong báo cáo (Mục 3.5.1). Cung cấp giao diện 
 
 Lọc lớp theo TÊN phương tiện để hoạt động đúng cho cả model COCO pre-trained
 lẫn model tự huấn luyện (data.yaml có thứ tự lớp khác COCO). Tập COCO ID
-{1: bicycle, 2: car, 3: motorcycle, 5: bus, 7: truck} được giữ làm phương án dự phòng khi
+{2: car, 3: motorcycle, 5: bus, 7: truck} được giữ làm phương án dự phòng khi
 model không cung cấp tên lớp.
 """
 

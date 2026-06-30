@@ -1,11 +1,7 @@
 """
 app_streamlit.py
 ------------------
-TransDetect-Vid Dashboard — Mock UI with Real-time Simulation.
-
-File này chứa giao diện với mock data, kết hợp vòng lặp mô phỏng
-đọc frame từ video thật thông qua OpenCV để kiểm tra layout thời gian thực.
-Chạy:  streamlit run app_streamlit.py
+Dashboard prototype; một số chức năng chưa kiểm thử đầy đủ
 """
 
 import streamlit as st
@@ -15,6 +11,7 @@ import time
 import tempfile
 import os
 import sys
+import json
 
 # Add project root to path so we can import src package
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -310,7 +307,8 @@ def main():
 
             with hc: st.markdown("**Detection Results** (Preview)")
             with cc: st.download_button("⬇ CSV", csv_data, "res.csv", use_container_width=True)
-            with jc: st.download_button("{ } JSON", "{}", "res.json", use_container_width=True)
+            json_data = json.dumps(st.session_state.get("export_data_list", []), ensure_ascii=False, indent=2)
+            with jc: st.download_button("{ } JSON", json_data, "res.json", use_container_width=True)
 
             table_placeholder = st.empty()
             if not st.session_state.is_running:
@@ -424,7 +422,8 @@ def main():
                 boxes, _, _ = classical_detector.detect_vehicle_candidates(
                     pre, min_area=config.MIN_CONTOUR_AREA, max_aspect_ratio=config.MAX_ASPECT_RATIO
                 )
-                counts = {"Car": len(boxes), "Motorcycle": 0, "Bus": 0, "Truck": 0}
+                candidate_count = len(boxes)
+                counts = {"Car": 0, "Motorcycle": 0, "Bus": 0, "Truck": 0}
                 frame_to_draw = visualization.draw_classical_boxes(frame.copy(), boxes)
             else:
                 if yolo_detector:
@@ -449,20 +448,25 @@ def main():
             c_tot = c_car + c_moto + c_bus + c_truck
 
             # --- Export Data Collection ---
-            for cls_name, count in counts.items():
-                if count > 0:
-                    avg_conf = 1.0
-                    if st.session_state.method_selector == "YOLO11" and yolo_detector:
-                        confs = [d["confidence"] for d in detections if str(d.get("class", "Car")).title() == cls_name]
-                        if confs:
-                            avg_conf = sum(confs) / len(confs)
-                    
-                    st.session_state.export_data_list.append({
-                        "frame_id": frame_idx,
-                        "class_name": cls_name,
-                        "confidence": round(avg_conf, 2),
-                        "count": count
-                    })
+            if st.session_state.method_selector == "Classical Pipeline":
+                # Classical chi tao candidate boxes, KHONG phan loai loai xe -> confidence N/A
+                st.session_state.export_data_list.append({
+                    "frame_id": frame_idx,
+                    "class_name": "candidate",
+                    "confidence": "N/A",
+                    "count": candidate_count
+                })
+            else:
+                for cls_name, count in counts.items():
+                    if count > 0:
+                        confs = [d["confidence"] for d in detections if str(d.get("class", "")).title() == cls_name]
+                        avg_conf = round(sum(confs) / len(confs), 2) if confs else None
+                        st.session_state.export_data_list.append({
+                            "frame_id": frame_idx,
+                            "class_name": cls_name,
+                            "confidence": avg_conf,
+                            "count": count
+                        })
 
             # --- 2. Update UI Preview (Throttled to prevent browser freeze) ---
             if curr_time - last_ui_update_time > 0.03: # Max ~33 FPS UI refresh
@@ -496,7 +500,7 @@ def main():
                 truck_placeholder.markdown(render_vehicle_card("Truck", c_truck, "green"), unsafe_allow_html=True)
                 
                 # --- 4. Update Table ---
-                hist = (frame_idx, f"{curr_s:.2f}", c_car, 0.85, c_moto, 0.9, c_bus, 0.88, c_truck, 0.9, c_tot)
+                hist = (frame_idx, f"{curr_s:.2f}", c_car, 0.0, c_moto, 0.0, c_bus, 0.0, c_truck, 0.0, c_tot)
                 st.session_state.results_history.insert(0, hist)
                 if len(st.session_state.results_history) > 6:
                     st.session_state.results_history.pop()
