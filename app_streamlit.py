@@ -343,10 +343,16 @@ def main():
                 avg_fps_metric.metric("Average FPS", "0.0 fps")
                 res_metric.metric("Resolution", "-")
                 
-                car_placeholder.markdown(render_vehicle_card("Car", 0, "blue"), unsafe_allow_html=True)
-                moto_placeholder.markdown(render_vehicle_card("Motorcycle", 0, "blue"), unsafe_allow_html=True)
-                bus_placeholder.markdown(render_vehicle_card("Bus", 0, "green"), unsafe_allow_html=True)
-                truck_placeholder.markdown(render_vehicle_card("Truck", 0, "green"), unsafe_allow_html=True)
+                if st.session_state.get("method_selector", "YOLO11") == "Classical Pipeline":
+                    car_placeholder.markdown(render_vehicle_card("Vùng ứng viên", 0, "blue"), unsafe_allow_html=True)
+                    moto_placeholder.empty()
+                    bus_placeholder.empty()
+                    truck_placeholder.empty()
+                else:
+                    car_placeholder.markdown(render_vehicle_card("Car", 0, "blue"), unsafe_allow_html=True)
+                    moto_placeholder.markdown(render_vehicle_card("Motorcycle", 0, "blue"), unsafe_allow_html=True)
+                    bus_placeholder.markdown(render_vehicle_card("Bus", 0, "green"), unsafe_allow_html=True)
+                    truck_placeholder.markdown(render_vehicle_card("Truck", 0, "green"), unsafe_allow_html=True)
                 
                 info_placeholder.markdown(render_video_info(st.session_state.uploaded_file_name or "-", "00:00:00", 0, 0, 0), unsafe_allow_html=True)
                 progress_bar.progress(0.0)
@@ -494,10 +500,16 @@ def main():
                 fps_placeholder.markdown(f'<div class="fps-container"><p class="fps-label">FPS (Current)</p><p><span class="fps-value">{current_fps:.1f}</span><span class="fps-unit">fps</span></p></div>', unsafe_allow_html=True)
                 avg_fps_metric.metric("Average FPS", f"{current_fps:.1f} fps")
                 
-                car_placeholder.markdown(render_vehicle_card("Car", c_car, "blue"), unsafe_allow_html=True)
-                moto_placeholder.markdown(render_vehicle_card("Motorcycle", c_moto, "blue"), unsafe_allow_html=True)
-                bus_placeholder.markdown(render_vehicle_card("Bus", c_bus, "green"), unsafe_allow_html=True)
-                truck_placeholder.markdown(render_vehicle_card("Truck", c_truck, "green"), unsafe_allow_html=True)
+                if st.session_state.method_selector == "Classical Pipeline":
+                    car_placeholder.markdown(render_vehicle_card("Vùng ứng viên", candidate_count, "blue"), unsafe_allow_html=True)
+                    moto_placeholder.empty()
+                    bus_placeholder.empty()
+                    truck_placeholder.empty()
+                else:
+                    car_placeholder.markdown(render_vehicle_card("Car", c_car, "blue"), unsafe_allow_html=True)
+                    moto_placeholder.markdown(render_vehicle_card("Motorcycle", c_moto, "blue"), unsafe_allow_html=True)
+                    bus_placeholder.markdown(render_vehicle_card("Bus", c_bus, "green"), unsafe_allow_html=True)
+                    truck_placeholder.markdown(render_vehicle_card("Truck", c_truck, "green"), unsafe_allow_html=True)
                 
                 # --- 4. Update Table ---
                 hist = (frame_idx, f"{curr_s:.2f}", c_car, 0.0, c_moto, 0.0, c_bus, 0.0, c_truck, 0.0, c_tot)
@@ -521,6 +533,10 @@ def main():
                     time.sleep(expected_elapsed - actual_elapsed)
 
         cap.release()
+        
+        # When video naturally finishes (not ret -> is_running=False), rerun to update download buttons
+        if not st.session_state.is_running:
+            st.rerun()
 
 
 if __name__ == "__main__":
