@@ -19,7 +19,8 @@ class Yolo11VehicleDetector:
         self.model = YOLO(model_path)
         self.model.to(self.device)
 
-    def detect_frame(self, bgr_frame, conf_threshold=0.25, iou_threshold=0.45):
+    def detect_frame(self, bgr_frame, conf_threshold=0.25, iou_threshold=0.45,
+                     max_det=300):
         if bgr_frame is None or bgr_frame.size == 0:
             raise ValueError("Khung hình đầu vào rỗng.")
 
@@ -27,32 +28,26 @@ class Yolo11VehicleDetector:
             bgr_frame,
             conf=conf_threshold,
             iou=iou_threshold,
+            max_det=max_det,
             device=self.device,
             verbose=False,
         )
-        detections = []
+        detected_vehicles = []
 
         for result in results:
-            if result.boxes is None or len(result.boxes) == 0:
+            if result.boxes is None:
                 continue
 
-            boxes = result.boxes.cpu()
-            class_ids = boxes.cls.numpy().astype(int)
-            xyxy = boxes.xyxy.numpy().astype(int)
-            confidences = boxes.conf.numpy()
-
-            for class_id, bbox, confidence in zip(class_ids, xyxy, confidences):
+            for box in result.boxes.cpu():
+                class_id = int(box.cls[0])
                 class_name = str(self.model.names[class_id])
-                normalized_name = class_name.strip().lower()
-                if normalized_name not in self.VEHICLE_NAMES:
+                if class_name.strip().lower() not in self.VEHICLE_NAMES:
                     continue
 
-                detections.append(
-                    {
-                        "bbox": bbox.tolist(),
-                        "class": class_name,
-                        "confidence": float(confidence),
-                    }
-                )
+                detected_vehicles.append({
+                    "bbox": box.xyxy[0].numpy().astype(int).tolist(),
+                    "class": class_name,
+                    "confidence": float(box.conf[0]),
+                })
 
-        return detections
+        return detected_vehicles

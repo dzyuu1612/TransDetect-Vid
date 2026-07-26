@@ -150,6 +150,12 @@ def _build_results_table(rows, highlight_row_idx=0):
     html += "</tbody></table>"
     return html
 
+def _avg_conf(detections, display_name):
+    """Confidence trung binh cua mot lop hien thi trong frame hien tai (Muc 4.2.2)."""
+    values = [d["confidence"] for d in detections
+              if d.get("display_class") == display_name]
+    return sum(values) / len(values) if values else 0.0
+
 def render_vehicle_card(type_str, count, color_theme):
     icon = {"Car": "🚗", "Motorcycle": "🏍️", "Bus": "🚌", "Truck": "🚛"}.get(type_str, "")
     return f"""
@@ -244,14 +250,14 @@ def main():
             st.markdown('<p class="section-title">Parameters</p>', unsafe_allow_html=True)
             st.slider("Confidence Threshold", 0.0, 1.0, 0.25, 0.01, key="conf_thresh")
             st.slider("IoU Threshold (NMS)", 0.0, 1.0, 0.45, 0.01, key="iou_thresh")
-            st.number_input("Max Detection per Frame", 1, 500, 100, 10, key="max_det")
+            st.number_input("Max Detection per Frame", 1, 500, config.MAX_DET, 10, key="max_det")
 
             st.divider()
             st.markdown('<p class="section-title">Target Classes</p>', unsafe_allow_html=True)
-            st.checkbox("🚗  Car (2)", value=True)
-            st.checkbox("🏍️  Motorcycle (3)", value=True)
-            st.checkbox("🚌  Bus (5)", value=True)
-            st.checkbox("🚛  Truck (7)", value=True)
+            # Muc 3.5.3: loc theo TEN lop da chuan hoa, khong hard-code COCO ID.
+            _icons = {"Car": "🚗", "Motorcycle": "🏍️", "Bus": "🚌", "Truck": "🚛"}
+            for _name in config.DISPLAY_CLASSES:
+                st.checkbox(f"{_icons[_name]}  {_name}", value=True, key=f"cls_{_name}")
 
             st.divider()
             c_run, c_pause, c_stop = st.columns(3)
@@ -420,6 +426,9 @@ def main():
                 last_fps_frame_idx = frame_idx
             
             current_fps = instant_fps if instant_fps > 0 else 0
+            # FPS trung binh = tong frame da xu ly / tong thoi gian chay (Muc 4.2.1),
+            # khac voi FPS tuc thoi do tren cua so 10 frame gan nhat.
+            avg_fps = (frame_idx - start_frame_idx) / elapsed if elapsed > 0 else 0.0
             
             # --- 1. Detection Logic (REAL DATA) ---
             detections = []
@@ -429,23 +438,36 @@ def main():
                     pre, min_area=config.MIN_CONTOUR_AREA, max_aspect_ratio=config.MAX_ASPECT_RATIO
                 )
                 candidate_count = len(boxes)
-                counts = {"Car": 0, "Motorcycle": 0, "Bus": 0, "Truck": 0}
+                counts = {n: 0 for n in config.DISPLAY_CLASSES}
                 frame_to_draw = visualization.draw_classical_boxes(frame.copy(), boxes)
             else:
+                counts = {n: 0 for n in config.DISPLAY_CLASSES}
                 if yolo_detector:
-                    detections = yolo_detector.detect_frame(frame, st.session_state.conf_thresh, st.session_state.iou_thresh)
-                    counts = {"Car": 0, "Motorcycle": 0, "Bus": 0, "Truck": 0}
+                    detections = yolo_detector.detect_frame(
+                        frame,
+                        st.session_state.conf_thresh,
+                        st.session_state.iou_thresh,
+                        st.session_state.max_det,
+                    )
+                    # Muc 3.5.3: anh xa ten lop (motorbike -> Motorcycle,
+                    # container truck -> Truck) roi loc theo Target Classes.
+                    kept = []
                     for det in detections:
-                        cls_name = str(det.get("class", "Car")).title()
-                        if cls_name in counts:
-                            counts[cls_name] += 1
-                        else:
-                            counts["Car"] += 1
-                            
+                        cls_name = config.CLASS_ALIAS.get(
+                            str(det.get("class", "")).strip().lower()
+                        )
+                        if cls_name is None:
+                            continue
+                        if not st.session_state.get(f"cls_{cls_name}", True):
+                            continue
+                        det["display_class"] = cls_name
+                        counts[cls_name] += 1
+                        kept.append(det)
+                    detections = kept
+
                     frame_to_draw = visualization.draw_yolo_detections(frame.copy(), detections)
                 else:
                     frame_to_draw = frame.copy()
-                    counts = {"Car": 0, "Motorcycle": 0, "Bus": 0, "Truck": 0}
 
             c_car = counts.get("Car", 0)
             c_moto = counts.get("Motorcycle", 0)
@@ -465,8 +487,7 @@ def main():
             else:
                 for cls_name, count in counts.items():
                     if count > 0:
-                        confs = [d["confidence"] for d in detections if str(d.get("class", "")).title() == cls_name]
-                        avg_conf = round(sum(confs) / len(confs), 2) if confs else None
+                        avg_conf = round(_avg_conf(detections, cls_name), 2)
                         st.session_state.export_data_list.append({
                             "frame_id": frame_idx,
                             "class_name": cls_name,
@@ -498,7 +519,7 @@ def main():
                 
                 # --- 4. Update Metrics ---
                 fps_placeholder.markdown(f'<div class="fps-container"><p class="fps-label">FPS (Current)</p><p><span class="fps-value">{current_fps:.1f}</span><span class="fps-unit">fps</span></p></div>', unsafe_allow_html=True)
-                avg_fps_metric.metric("Average FPS", f"{current_fps:.1f} fps")
+                avg_fps_metric.metric("Average FPS", f"{avg_fps:.1f} fps")
                 
                 if st.session_state.method_selector == "Classical Pipeline":
                     car_placeholder.markdown(render_vehicle_card("Vùng ứng viên", candidate_count, "blue"), unsafe_allow_html=True)
@@ -512,7 +533,11 @@ def main():
                     truck_placeholder.markdown(render_vehicle_card("Truck", c_truck, "green"), unsafe_allow_html=True)
                 
                 # --- 4. Update Table ---
-                hist = (frame_idx, f"{curr_s:.2f}", c_car, 0.0, c_moto, 0.0, c_bus, 0.0, c_truck, 0.0, c_tot)
+                hist = (frame_idx, f"{curr_s:.2f}",
+                        c_car,   _avg_conf(detections, "Car"),
+                        c_moto,  _avg_conf(detections, "Motorcycle"),
+                        c_bus,   _avg_conf(detections, "Bus"),
+                        c_truck, _avg_conf(detections, "Truck"), c_tot)
                 st.session_state.results_history.insert(0, hist)
                 if len(st.session_state.results_history) > 6:
                     st.session_state.results_history.pop()

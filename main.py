@@ -14,11 +14,13 @@ def main():
     p.add_argument("--model", default=None)
     p.add_argument("--conf", type=float, default=None)
     p.add_argument("--iou", type=float, default=None)
+    p.add_argument("--max-det", dest="max_det", type=int, default=None)
     a = p.parse_args()
     if a.method == "classical":
         pipeline.run_classical(a.input, a.output)
     else:
-        pipeline.run_yolo(a.input, a.output, model_path=a.model, conf=a.conf, iou=a.iou)
+        pipeline.run_yolo(a.input, a.output, model_path=a.model, conf=a.conf,
+                          iou=a.iou, max_det=a.max_det)
 
 
 if __name__ == "__main__":

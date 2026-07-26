@@ -44,7 +44,9 @@ def run_classical(input_path, output_path):
         boxes, _, _ = classical_detector.detect_vehicle_candidates(
             pre,
             min_area=config.MIN_CONTOUR_AREA,
+            max_area=config.MAX_CONTOUR_AREA,
             max_aspect_ratio=config.MAX_ASPECT_RATIO,
+            edge_threshold=config.SOBEL_EDGE_THRESHOLD,
         )
         output = visualization.draw_classical_boxes(frame, boxes)
 
@@ -62,11 +64,13 @@ def run_classical(input_path, output_path):
     print(f"Đã lưu video kết quả tại: {output_path}")
 
 
-def run_yolo(input_path, output_path, model_path=None, conf=None, iou=None):
+def run_yolo(input_path, output_path, model_path=None, conf=None, iou=None,
+             max_det=None):
     """Chạy nhánh YOLO11 trên toàn bộ video."""
     detector = Yolo11VehicleDetector(model_path or config.DEFAULT_YOLO_MODEL)
     conf = config.CONF_THRESHOLD if conf is None else conf
     iou = config.IOU_THRESHOLD if iou is None else iou
+    max_det = config.MAX_DET if max_det is None else max_det
 
     cap = cv2.VideoCapture(input_path)
     writer = _open_writer(cap, output_path)
@@ -76,7 +80,7 @@ def run_yolo(input_path, output_path, model_path=None, conf=None, iou=None):
         if not ret:
             break
 
-        detections = detector.detect_frame(frame, conf, iou)
+        detections = detector.detect_frame(frame, conf, iou, max_det)
         output = visualization.draw_yolo_detections(frame, detections)
         writer.write(output)
 
