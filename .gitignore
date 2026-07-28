@@ -17,3 +17,13 @@ runs/
 
 # Streamlit config
 .streamlit/
+
+# Dataset train/valid/test dumps (images + labels). Only README/data.yaml
+# describing source and license should be committed; see datasets/README.md.
+datasets/*/train/
+datasets/*/valid/
+datasets/*/test/
+
+# Traffic-sign dataset is out of the report's scope (vehicles only, see
+# datasets/README.md); not tracked at all.
+datasets/Vietnam-Traffic-Sign.v1i.yolov11/
