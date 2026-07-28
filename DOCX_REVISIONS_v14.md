@@ -77,7 +77,29 @@ feel too dense, say which one and it can get the same simplification.
 
 ---
 
+### Motion-arrow drawing rule documented in §3.4.1
+
+Added a sentence after the Listing 3.3 discussion explaining the display
+convention, because a reader looking at the figure will see ~20 arrows over
+~100 dots and reasonably wonder why: every tracked point draws a blue dot,
+but only points displaced ≥1 px draw a red arrow. Measured on the real
+sg(3) video, ~80/100 points sit on static background with mean displacement
+0.67 px (sub-pixel noise), so arrowing them would render noise as motion.
+Arrow length is fixed for visibility after the UI downscale; direction is
+always the true measured (u,v).
+
+---
+
 ## Outstanding
+
+### Caption numbers in Figure 4.1 may not match your final screenshot
+
+Figure 4.1's caption currently reads "FPS ≈ 8,9–9,2" and "21 candidate
+boxes", taken from the earlier screenshot (frame 122). Your most recent
+screenshot shows FPS 9.0/9.4 and 25 candidate boxes at frame 18 — different
+frame, so different counts, which is expected. **Whichever screenshot you
+finally insert, check these two numbers in the caption match it**, or tell
+me the numbers and I'll update the caption.
 
 ### Insert Figure 3.3 — Lucas-Kanade motion vectors (§3.4.1)
 

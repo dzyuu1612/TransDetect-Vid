@@ -22,7 +22,7 @@ Chọn một trong hai kịch bản ở Phần 0 rồi đi thẳng theo nó.
   - [2.7 `__init__.py`](#27-__init__py--khai-báo-package)
 - [Phần 3 — Kịch bản B: Dashboard (`app_streamlit.py`)](#phần-3--kịch-bản-b-dashboard-app_streamlitpy)
 - [Phần 3.8 — Sửa lỗi tương phản chữ (theme + màu CSS)](#phần-38--sửa-lỗi-tương-phản-chữ-theme--màu-css)
-  - [3.8.4 — Mũi tên Lucas-Kanade bị chấm tròn che mất](#384-mũi-tên-lucas-kanade-bị-chấm-tròn-che-mất)
+  - [3.8.4 — Mũi tên Lucas-Kanade không hiện, và bài học chẩn đoán](#384-mũi-tên-lucas-kanade-không-hiện--và-bài-học-về-cách-chẩn-đoán)
 - [Phần 4 — `legacy/` và các script cũ](#phần-4--legacy-và-các-script-cũ)
 - [Phần 5 — Sơ đồ tổng](#phần-5--sơ-đồ-tổng)
 
@@ -762,44 +762,70 @@ Hàm này chỉ chạm `det["bbox"]/["class"]/["confidence"]` — toàn kiểu P
 Đó chính là ý của §3.5.1: khối hiển thị không bao giờ thấy tensor Ultralytics.
 
 ```python
-def draw_motion_vectors(frame, points, motion_vectors, display_scale=5.0):  # dòng 46
-    output = frame.copy()                                               # dòng 58
-    for (xc, yc), (u, v) in zip(points, motion_vectors):                # dòng 59
-        p_curr = (int(xc), int(yc))                                     # dòng 60
-        p_prev = (int(xc - u * display_scale), int(yc - v * display_scale))  # dòng 61
-        cv2.arrowedLine(output, p_prev, p_curr, (0,0,255), 2, tipLength=0.4)  # dòng 62
-        cv2.circle(output, p_curr, 3, (255,0,0), -1)                    # dòng 63
-    return output                                                       # dòng 64
+def draw_motion_vectors(frame, points, motion_vectors, min_motion=1.0,   # dòng 46
+                        arrow_length=30.0):                              # dòng 47
+    output = frame.copy()                                                # dòng 74
+    for (xc, yc), (u, v) in zip(points, motion_vectors):                 # dòng 75
+        p_curr = (int(xc), int(yc))                                      # dòng 76
+        do_doi = (u ** 2 + v ** 2) ** 0.5                                # dòng 77
+        if do_doi >= min_motion:                                         # dòng 79
+            huong_x, huong_y = u / do_doi, v / do_doi                    # dòng 82
+            p_prev = (int(xc - huong_x * arrow_length),                  # dòng 83
+                      int(yc - huong_y * arrow_length))                  # dòng 84
+            cv2.arrowedLine(output, p_prev, p_curr, (0,0,255), 3,        # dòng 85
+                            tipLength=0.35)
+        cv2.circle(output, p_curr, 3, (255,0,0), -1)                     # dòng 88
+    return output                                                        # dòng 89
 ```
-`zip()` (dòng 59) ghép hai mảng, lặp đồng thời từng cặp `(điểm, vector)`.
+`zip()` (dòng 75) ghép hai mảng, lặp đồng thời từng cặp `(điểm, vector)`.
 
-**Vì sao có `display_scale=5.0` (thêm sau khi phát hiện mũi tên vô hình
-trên video thật):** thử nghiệm tổng hợp với chuyển động 4 px/frame — con số
-thực tế cho video 25-30 FPS — cho thấy `motion_vectors` được Lucas-Kanade
-tính **đúng** (đo lại được đúng 4.00 px), nhưng khi vẽ đúng tỉ lệ 1:1, mũi
-tên dài 4 px bị chấm tròn bán kính 3 px ở dòng 63 che gần hết, và Dashboard
-còn thu nhỏ khung hình về 480p trước khi hiển thị (§3.7) khiến nó nhỏ hơn
-nữa — kết quả là người dùng chỉ thấy chấm xanh, không thấy mũi tên đỏ nào,
-dù thuật toán chạy hoàn toàn đúng. Đây thuần túy là vấn đề **hiển thị**, không
-phải lỗi tính toán.
+**Quy tắc vẽ chỉ có hai trường hợp:**
 
-Dòng 61 nhân `u`, `v` với `display_scale` **chỉ** khi tính điểm đuôi mũi
-tên `p_prev` — phóng đại độ dài mũi tên lên gấp 5 lần cho dễ nhìn. Điểm đầu
-mũi tên `p_curr` (dòng 60, cũng là tâm chấm tròn) **không đổi**, vẫn đúng vị
-trí thật 100%. Giá trị `motion_vectors` mà hàm này *nhận vào* không hề bị
-sửa — việc phóng đại chỉ xảy ra cục bộ trong phép vẽ, không lan ra bất kỳ
-biến nào khác. Vì CSV/JSON xuất ra (§3.7) không chứa dữ liệu chuyển động
-(chỉ có `frame_id, class_name, confidence, count`), việc phóng đại này
-**không ảnh hưởng đến bất kỳ số liệu báo cáo nào**, chỉ ảnh hưởng phần vẽ.
+| Điều kiện | Vẽ gì | Ý nghĩa |
+|---|---|---|
+| `do_doi < 1.0` px | chỉ chấm xanh | điểm bám trên nền tĩnh (nhà, cây, biển hiệu) |
+| `do_doi >= 1.0` px | chấm xanh + mũi tên đỏ | điểm bám trên xe đang chạy |
 
-Dòng 61 — logic hay khác: hàm nhận vị trí **hiện tại** rồi *dựng ngược* vị trí trước
-bằng cách trừ vector chuyển động. Nhờ vậy mũi tên vẽ từ `p_prev` → `p_curr`, tức
-chỉ đúng **hướng di chuyển**.
+**Vì sao phải lọc `min_motion` (bài học rút ra sau hai lần sửa hụt):** đo
+thẳng trên video `sg(3)` thật (1280×720, **59,94 FPS**) qua đúng pipeline
+Dashboard cho kết quả:
 
-Dòng 62: `(0,0,255)` là **đỏ** trong BGR. `tipLength=0.4` = đầu mũi tên dài 40%
-thân.
-Dòng 63: `(255,0,0)` là **xanh dương** trong BGR. Tham số `-1` cuối = tô đặc hình
-tròn (số dương sẽ là độ dày viền).
+```
+Số điểm theo dõi : 100
+Độ dời trung bình: 0,67 px    ← phần lớn là NHIỄU dưới một pixel
+Độ dời lớn nhất  : ~6 px
+Số điểm >= 1 px  : chỉ ~20/100  ← đây mới là xe thật sự di chuyển
+```
+
+Nghĩa là ~80/100 điểm nằm trên **nền tĩnh** với độ dời dưới một pixel. Hai
+lần sửa trước tôi chỉ nhân hệ số phóng đại (`display_scale`) rồi thêm sàn
+tối thiểu (`min_arrow_length`) cho *mọi* điểm — điều đó kéo cả 80 điểm nhiễu
+lên thành mũi tên dài bằng nhau, chỉ hướng lung tung, **biến nhiễu thành tín
+hiệu giả** và nhấn chìm ~20 mũi tên thật. Vừa rối mắt vừa sai về mặt khoa
+học. Lọc theo `min_motion` giải quyết cả hai: hình sạch hơn *và* trung thực
+hơn.
+
+**Vì sao `arrow_length` cố định 30 px thay vì vẽ đúng độ dời thật:** độ dời
+thật chỉ 1-6 px, trong khi chấm tròn đã có bán kính 3 px (dòng 88) và
+Dashboard còn thu nhỏ khung hình 720p → 480p trước khi hiển thị (§3.7). Vẽ
+đúng tỉ lệ 1:1 thì mũi tên bị chấm tròn nuốt mất. Dòng 82 chia `u`, `v` cho
+`do_doi` để được **vector đơn vị** — nhờ đó **hướng luôn chính xác 100%**,
+chỉ độ dài là quy ước hiển thị.
+
+Điểm đầu mũi tên `p_curr` (dòng 76, cũng là tâm chấm tròn) luôn ở **đúng vị
+trí thật**. Giá trị `motion_vectors` mà hàm *nhận vào* không hề bị sửa. Vì
+CSV/JSON xuất ra (§3.7) không chứa dữ liệu chuyển động (chỉ có
+`frame_id, class_name, confidence, count`), toàn bộ quy ước vẽ này **không
+ảnh hưởng đến bất kỳ số liệu nào trong báo cáo**.
+
+Dòng 83-84 — logic hay: hàm nhận vị trí **hiện tại** rồi *dựng ngược* điểm
+đuôi bằng cách trừ đi vector hướng. Nhờ vậy mũi tên vẽ từ `p_prev` →
+`p_curr`, tức chỉ đúng **hướng di chuyển**.
+
+Dòng 85: `(0,0,255)` là **đỏ** trong BGR; độ dày `3` (tăng từ 2) để không bị
+mảnh quá sau khi thu nhỏ về 480p. `tipLength=0.35` = đầu mũi tên dài 35% thân.
+Dòng 88: `(255,0,0)` là **xanh dương** trong BGR. Tham số `-1` cuối = tô đặc
+hình tròn (số dương sẽ là độ dày viền).
 
 ### 2.7 `__init__.py` — khai báo package
 
@@ -1468,31 +1494,44 @@ Sau khi ép `base = "light"`, ảnh chụp với `color_scheme="dark"` và
 `color_scheme="light"` cho kết quả **giống hệt nhau** — đúng như mong đợi,
 vì giờ theme không còn phụ thuộc vào lựa chọn của trình duyệt nữa.
 
-### 3.8.4 Mũi tên Lucas-Kanade bị chấm tròn che mất
+### 3.8.4 Mũi tên Lucas-Kanade không hiện — và bài học về cách chẩn đoán
 
-Chạy thử trên video thật (`sg(3)`), Dashboard hiện đúng các chấm xanh (điểm
-đặc trưng) nhưng **không thấy mũi tên đỏ nào** dù code đã chạy Lucas-Kanade
-đúng (§3.8 phần trước). Kiểm tra bằng thử nghiệm tổng hợp: đưa vào chuyển
-động 4 px/frame (mức thực tế cho video 25-30 FPS), `LucasKanadeTracker` đo
-lại **đúng** 4,00 px — thuật toán không sai. Vấn đề là **vẽ**: mũi tên dài
-4px bị chấm tròn bán kính 3px (`visualization.py`, `cv2.circle(..., 3, ...)`)
-vẽ đè lên gần như che kín, rồi Dashboard còn thu nhỏ khung hình về 480p
-trước khi hiển thị (§3.7) khiến nó nhỏ hơn nữa.
+Chạy trên video thật (`sg(3)`), Dashboard hiện đúng các chấm xanh nhưng
+**không thấy mũi tên đỏ**. Chi tiết cách sửa cuối cùng đã trình bày ở Mục
+2.6 (`draw_motion_vectors`). Phần này ghi lại **quá trình chẩn đoán**, vì
+nó là ví dụ điển hình của việc đoán sai hai lần do thiếu dữ liệu thật.
 
-**Sửa:** `draw_motion_vectors` trong `src/transdetect/visualization.py`
-thêm tham số `display_scale=5.0`, chỉ nhân vào toạ độ điểm đuôi mũi tên
-(`p_prev`) khi vẽ — điểm đầu (`p_curr`, cũng là tâm chấm tròn) và giá trị
-`motion_vectors` mà hàm *nhận vào* không hề đổi:
+**Lần 1 — đoán:** giả định video 25-30 FPS → chuyển động ~4 px/frame. Thử
+nghiệm tổng hợp xác nhận thuật toán đo đúng 4,00 px, nên kết luận vấn đề
+thuần là vẽ, thêm `display_scale=5.0`. → Người dùng báo vẫn không thấy.
 
-```python
-p_prev = (int(xc - u * display_scale), int(yc - v * display_scale))
+**Lần 2 — vẫn đoán:** phát hiện video thật là **59,94 FPS** (gần gấp đôi giả
+định), nên chuyển động thật còn nhỏ hơn nữa. Tăng hệ số lên 8 và thêm sàn
+`min_arrow_length=10`. → Người dùng vẫn báo không thấy.
+
+**Lần 3 — đo thật:** tìm file video người dùng đã upload trong thư mục tạm
+của Streamlit, chạy đúng pipeline Dashboard lên nó và **in ra số liệu**:
+
+```
+Số điểm : 100  | Độ dời TB: 0,67 px  | Max: ~6 px  | Số điểm >= 1px: ~20
 ```
 
-Vì CSV/JSON xuất ra không chứa dữ liệu chuyển động (chỉ có
-`frame_id, class_name, confidence, count`), việc phóng đại này thuần vẽ,
-không ảnh hưởng số liệu báo cáo. Xác nhận bằng ảnh trước/sau trên cùng dữ
-liệu tổng hợp: trước khi sửa, mũi tên gần như vô hình; sau khi sửa,
-`display_scale=5.0` cho mũi tên rõ ràng chỉ đúng hướng.
+Lúc này nguyên nhân thật mới lộ ra, và nó **khác hẳn** giả thuyết ban đầu:
+không phải "mũi tên quá ngắn" mà là **80% số điểm bám vào nền tĩnh với
+chuyển động dưới một pixel**. Cái sàn `min_arrow_length` thêm ở lần 2 còn
+làm mọi thứ tệ hơn — nó kéo cả 80 điểm nhiễu đó thành mũi tên dài bằng
+nhau, hướng lung tung, che lấp ~20 mũi tên thật.
+
+**Bài học:** hai lần đầu đều "xác minh" bằng dữ liệu *tổng hợp do chính
+mình tạo ra* theo giả định của mình — nên chỉ xác nhận lại chính giả định
+đó, không phát hiện được điều mình chưa biết. Chỉ khi đo trên **dữ liệu
+thật của người dùng** mới thấy được phân bố 80/20. Với bug liên quan đến
+dữ liệu thực tế, dữ liệu tổng hợp chỉ dùng để kiểm tra *sau khi* đã biết
+nguyên nhân, không dùng để *tìm* nguyên nhân.
+
+Cách kiểm chứng cuối cùng cũng đổi cho đúng: thay vì xem ảnh ở kích thước
+gốc, render qua đúng pipeline Dashboard rồi **thu nhỏ về 480p — đúng kích
+thước giao diện thật sự hiển thị** — rồi mới nhìn.
 
 ---
 
