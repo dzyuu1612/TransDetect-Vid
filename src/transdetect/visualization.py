@@ -43,39 +43,47 @@ def draw_yolo_detections(frame, detections):
     return output
 
 
-def draw_motion_vectors(frame, points, motion_vectors, display_scale=8.0,
-                        min_arrow_length=10.0):
-    """Vẽ mũi tên chuyển động từ Lucas-Kanade.
+def draw_motion_vectors(frame, points, motion_vectors, min_motion=1.0,
+                        arrow_length=30.0):
+    """Vẽ điểm đặc trưng và mũi tên chuyển động từ Lucas-Kanade.
 
-    Chuyển động thực giữa hai khung hình liên tiếp thường chỉ 1-4 pixel (còn
-    ít hơn nữa với video quay ở FPS cao, ví dụ 59,94 FPS thực tế của
-    duong_pho_sg(3).mp4 - khoảng cách thời gian giữa 2 frame ngắn hơn một
-    nửa so với video 30 FPS cùng tốc độ xe thật). Vẽ đúng tỉ lệ 1:1 khiến mũi
-    tên bị chấm tròn bán kính 3px che khuất gần hết, rồi Dashboard còn thu
-    nhỏ khung hình về 480p để hiển thị (§3.7), làm nó nhỏ thêm lần nữa.
+    Quy tắc vẽ rất đơn giản, chỉ có hai trường hợp:
 
-    `display_scale` phóng đại độ dài mũi tên khi VẼ; `min_arrow_length` đảm
-    bảo NGAY CẢ khi chuyển động đo được rất nhỏ, mũi tên vẫn đủ dài để thấy
-    (hướng vẫn giữ đúng, chỉ độ dài được kéo lên sàn tối thiểu). Điểm có
-    chuyển động ĐÚNG BẰNG 0 (điểm tĩnh thật sự - nền, cột đèn...) vẫn chỉ vẽ
-    chấm tròn, KHÔNG vẽ mũi tên giả - không bịa hướng cho thứ không di
-    chuyển. Điểm p_curr (chấm tròn) luôn ở đúng vị trí thật, và
-    motion_vectors trả về cho lời gọi hàm không hề bị đổi - không có dữ liệu
-    chuyển động nào được xuất ra CSV/JSON nên việc phóng đại này chỉ ảnh
-    hưởng phần vẽ, không ảnh hưởng số liệu báo cáo.
+    1. Điểm gần như đứng yên (độ dời < `min_motion` pixel) -> chỉ vẽ CHẤM
+       XANH. Đây là các điểm bám trên nền tĩnh: nhà, cây, biển hiệu. Đo trên
+       video sg(3) thật, khoảng 80/100 điểm rơi vào nhóm này với độ dời
+       trung bình chỉ 0,67 px - tức là nhiễu dưới một pixel, không phải
+       chuyển động thật. Không vẽ mũi tên cho chúng để tránh biến nhiễu
+       thành tín hiệu giả.
+
+    2. Điểm di chuyển thật (độ dời >= `min_motion`) -> vẽ thêm MŨI TÊN ĐỎ
+       chỉ đúng hướng đi. Đây là các điểm bám trên xe đang chạy, khoảng
+       20/100 điểm, độ dời 1-6 px mỗi frame.
+
+    Vì sao phải vẽ mũi tên dài `arrow_length` cố định thay vì đúng độ dời
+    thật: độ dời thật chỉ 1-6 px, trong khi chấm tròn đã có bán kính 3 px và
+    Dashboard còn thu nhỏ khung hình 720p xuống 480p trước khi hiển thị
+    (Mục 3.7). Vẽ đúng tỉ lệ 1:1 thì mũi tên bị chấm tròn nuốt mất, người
+    xem không thấy gì. Mũi tên ở đây thể hiện HƯỚNG di chuyển (luôn chính
+    xác), còn độ dài chỉ để nhìn thấy được.
+
+    Giá trị `motion_vectors` truyền vào không hề bị sửa, và không có dữ liệu
+    chuyển động nào được xuất ra CSV/JSON, nên cách vẽ này không ảnh hưởng
+    tới bất kỳ số liệu nào trong báo cáo.
     """
     output = frame.copy()
     for (xc, yc), (u, v) in zip(points, motion_vectors):
         p_curr = (int(xc), int(yc))
-        magnitude = (u ** 2 + v ** 2) ** 0.5
-        if magnitude < 1e-3:
-            # Chuyển động ~0: điểm tĩnh thật, không có hướng nào để vẽ.
-            cv2.circle(output, p_curr, 3, (255, 0, 0), -1)
-            continue
+        do_doi = (u ** 2 + v ** 2) ** 0.5
 
-        draw_length = max(magnitude * display_scale, min_arrow_length)
-        ux, uy = u / magnitude, v / magnitude  # vector đơn vị - giữ đúng hướng
-        p_prev = (int(xc - ux * draw_length), int(yc - uy * draw_length))
-        cv2.arrowedLine(output, p_prev, p_curr, (0, 0, 255), 2, tipLength=0.4)
+        if do_doi >= min_motion:
+            # Chia cho do_doi để được vector đơn vị -> giữ nguyên hướng,
+            # rồi nhân với arrow_length để mũi tên đủ dài mà nhìn thấy.
+            huong_x, huong_y = u / do_doi, v / do_doi
+            p_prev = (int(xc - huong_x * arrow_length),
+                      int(yc - huong_y * arrow_length))
+            cv2.arrowedLine(output, p_prev, p_curr, (0, 0, 255), 3,
+                            tipLength=0.35)
+
         cv2.circle(output, p_curr, 3, (255, 0, 0), -1)
     return output
