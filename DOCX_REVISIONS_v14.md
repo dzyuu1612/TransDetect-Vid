@@ -18,10 +18,42 @@ rewrite of Chapter 4).
   one real Colab run for evidence, and flags that Cell 6 needs a tunnel
   service to be reachable from a browser.
 - **B1.** Appendix A.1's folder tree now lists the previously-missing files
-  (`legacy/`, `app.py`, `yolo_detector.py` at root, `run_demo.py`,
-  `pyproject.toml`, `pyrightconfig.json`, `HUONG_DAN_CAI_DAT.md`,
-  `UI_REQUIREMENTS.md`, `CODE_WALKTHROUGH.md`), with a note that the
-  pre-refactor files aren't imported by `main.py`/`app_streamlit.py`.
+  (`app.py`, `yolo_detector.py` at root, `run_demo.py`, `pyproject.toml`,
+  `pyrightconfig.json`, `HUONG_DAN_CAI_DAT.md`, `UI_REQUIREMENTS.md`,
+  `CODE_WALKTHROUGH.md`), with a note that the pre-refactor files aren't
+  imported by `main.py`/`app_streamlit.py`.
+- **`legacy/` deleted** from the repo and from the A.1 tree. Nothing imported
+  it, and it implemented the algorithms *differently* from
+  `src/transdetect/` (`MORPH_CLOSE` vs `dilate`, `RETR_EXTERNAL` vs
+  `RETR_LIST`, `(x,y,w,h)` vs `xyxy`, no max-area/aspect filter, Sobel
+  default 50 vs 40) — so a reviewer who opened it could reasonably conclude
+  the source didn't match Listings 3.1–3.3. Its line-by-line comments are
+  fully superseded by `CODE_WALKTHROUGH.md`. Recoverable via
+  `git log -- legacy/`.
+- **`datasets/` kept** (~23 KB, docs only — no images or labels remain).
+  It carries the CC BY 4.0 attribution for the three Roboflow datasets and
+  explains where the `container truck` entry in `VEHICLE_NAMES` came from,
+  which §3.5.3 of the report refers to. No code reads it (`train_yolo.py`
+  hard-codes absolute paths elsewhere), so it is documentation rather than a
+  dependency — but attribution for licensed data is worth keeping.
+
+### Figure 4.1 replaced with a current Classical Pipeline screenshot
+
+The old figure was replaced with a freshly captured Dashboard screenshot
+(same `sg(3)` video, Classical Pipeline, current code including the fixed
+Lucas-Kanade arrows). **Figure 4.2 (YOLO11) was left untouched.**
+
+The caption now matches the inserted image exactly: frame 74, FPS 14.4
+current / 14.8 average, 20 candidate boxes.
+
+**Caveat worth knowing:** that capture was taken through an automated
+(headless) browser, which skips on-screen rendering and therefore reports a
+*higher* FPS than a normal browser session — the user's own run of the same
+video showed 9.0/9.4. Table 4.3 and the paragraph above it were widened to
+`8,9–14,8` and now state explicitly that the Dashboard FPS includes browser
+redraw cost, quoting both figures. If you would rather the report show only
+the normal-browser numbers, save your own screenshot and it can be swapped
+in with the caption and table reverted to ~9 FPS.
 - **B2.** Fixed at the repo level, not the sentence: removed ~4,540 committed
   dataset label files and the out-of-scope traffic-sign dataset from git
   (commit `0770bd7`). "KHÔNG commit ảnh/nhãn" in A.1 is now literally true.

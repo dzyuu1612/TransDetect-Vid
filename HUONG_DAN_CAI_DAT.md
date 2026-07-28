@@ -42,19 +42,23 @@ Bố cục package `src/` theo chuẩn "src layout" của Python Packaging Autho
 
 ### File cũ còn nằm trong repo (KHÔNG dùng cho báo cáo)
 
-Những file dưới đây là bản trước khi refactor, giữ lại để không phá vỡ tham
-chiếu cũ. Chúng **không** được import bởi `main.py` hay `app_streamlit.py`, và
-**khác thuật toán** so với `src/transdetect/`. Chi tiết khác biệt xem bảng so
-sánh ở Mục 4 của `CODE_WALKTHROUGH.md`.
+Những file dưới đây là bản trước khi refactor. Chúng **không** được import bởi
+`main.py` hay `app_streamlit.py`.
 
 | File | Là gì | Vì sao đừng trích vào báo cáo |
 |---|---|---|
-| `legacy/preprocessing.py` | bản nháp chú thích từng dòng | trùng chức năng với `src/transdetect/preprocessing.py` |
-| `legacy/classical_detector.py` | bản nháp | dùng `MORPH_CLOSE` + `RETR_EXTERNAL`, box `(x,y,w,h)`, không lọc `max_area`/tỉ lệ khung |
-| `legacy/optical_flow.py` | bản nháp | hàm rời, người gọi tự giữ trạng thái điểm |
 | `yolo_detector.py` (gốc) | API cũ | trả tuple thay vì dict, **không lọc lớp phương tiện** |
 | `app.py` | dashboard Streamlit cũ | hard-code `runs\detect\motorbike_yolo11n\weights\best.pt` |
 | `run_demo.py` | thử nhanh 1 ảnh | hard-code đường dẫn máy cá nhân, không chạy được |
+
+> Thư mục `legacy/` (bản nháp cũ của preprocessing / classical_detector /
+> optical_flow) **đã được xóa**. Lý do: không file nào import nó, và nó cài đặt
+> thuật toán **khác** với `src/transdetect/` (`MORPH_CLOSE` thay vì `dilate`,
+> `RETR_EXTERNAL` thay vì `RETR_LIST`, box `(x,y,w,h)` thay vì `xyxy`, thiếu bộ
+> lọc `max_area` và tỉ lệ khung) — tức là người đọc repo có thể mở nhầm và
+> tưởng mã nguồn không khớp Listing 3.1–3.3 của báo cáo. Phần chú thích từng
+> dòng của nó đã được thay thế đầy đủ bởi `CODE_WALKTHROUGH.md`. Nếu cần xem
+> lại, dùng `git log -- legacy/`.
 
 ---
 

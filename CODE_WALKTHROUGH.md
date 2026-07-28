@@ -23,20 +23,19 @@ Chọn một trong hai kịch bản ở Phần 0 rồi đi thẳng theo nó.
 - [Phần 3 — Kịch bản B: Dashboard (`app_streamlit.py`)](#phần-3--kịch-bản-b-dashboard-app_streamlitpy)
 - [Phần 3.8 — Sửa lỗi tương phản chữ (theme + màu CSS)](#phần-38--sửa-lỗi-tương-phản-chữ-theme--màu-css)
   - [3.8.4 — Mũi tên Lucas-Kanade không hiện, và bài học chẩn đoán](#384-mũi-tên-lucas-kanade-không-hiện--và-bài-học-về-cách-chẩn-đoán)
-- [Phần 4 — `legacy/` và các script cũ](#phần-4--legacy-và-các-script-cũ)
+- [Phần 4 — Các script cũ còn lại](#phần-4--các-script-cũ-còn-lại)
 - [Phần 5 — Sơ đồ tổng](#phần-5--sơ-đồ-tổng)
 
 ---
 
 ## Phần 0 — Bản đồ repo và hai kịch bản chạy
 
-Repo chứa **ba thế hệ** của cùng một thuật toán. Phân biệt được ba lớp này là
+Repo chứa **hai thế hệ** của cùng một thuật toán. Phân biệt được hai lớp này là
 điều dễ nhầm nhất:
 
 | Lớp | File | Trạng thái |
 |---|---|---|
 | **Hiện hành (Chương 3 báo cáo)** | `src/transdetect/*.py` | Chuẩn. Báo cáo trích ở Listing 3.1–3.4. |
-| **Legacy (bản nháp học)** | `legacy/*.py` | Đông lạnh. **Khác thuật toán**. Không ai import. |
 | **Script cũ ở gốc** | `yolo_detector.py`, `app.py`, `run_demo.py`, `train_yolo.py` | Prototype trước refactor. |
 
 Hai kịch bản chạy:
@@ -437,7 +436,7 @@ Dòng 38: `np.where(điều_kiện, giá_trị_nếu_đúng, giá_trị_nếu_sa
 if-else. `.astype(np.uint8)` bắt buộc vì `np.where` trả về `int64`, mà OpenCV chỉ
 nhận `uint8` cho ảnh nhị phân.
 
-`epsilon=1e-3` chặt hơn nhiều bản legacy (`0.5`); vì mask được ngưỡng hoá trên
+`epsilon=1e-3` rất chặt; vì mask được ngưỡng hoá trên
 `threshold` kiểu **float** (không phải int), epsilon chặt chỉ tốn thêm vài vòng
 nhưng đổi lại độ ổn định dưới mức một đơn vị xám.
 
@@ -1535,30 +1534,20 @@ thước giao diện thật sự hiển thị** — rồi mới nhìn.
 
 ---
 
-## Phần 4 — `legacy/` và các script cũ
+## Phần 4 — Các script cũ còn lại
 
-`legacy/README.md` nói rõ: bản sao lịch sử, giữ để script rất cũ dùng
-`from preprocessing import preprocess` không bị vỡ. **Không có gì trong codebase
-hiện tại import chúng.**
+> **Thư mục `legacy/` đã bị xóa khỏi repo.** Nó chứa bản nháp cũ của
+> `preprocessing` / `classical_detector` / `optical_flow`, không file nào
+> import, và **cài đặt thuật toán khác** với `src/transdetect/`:
+> `epsilon` ngưỡng `0.5` thay vì `1e-3`, `MORPH_CLOSE` thay vì `dilate`,
+> `RETR_EXTERNAL` thay vì `RETR_LIST`, box `(x,y,w,h)` thay vì `xyxy`, thiếu
+> bộ lọc `max_area` và tỉ lệ khung, ngưỡng Sobel mặc định `50` thay vì `40`.
+> Nguy cơ thật: người chấm mở nhầm file trong `legacy/` rồi kết luận mã nguồn
+> không khớp Listing 3.1–3.3 của báo cáo. Toàn bộ phần chú thích từng dòng
+> của nó đã được thay thế bởi chính tài liệu này. Cần xem lại thì dùng
+> `git log -- legacy/`.
 
-Đây là bản nháp gốc của nhóm — chú thích đúng nghĩa đen từng dòng, viết trước khi
-đóng gói vào `src/transdetect/`. Đọc để hiểu giải thích thì tốt, nhưng **đừng
-trích làm phần hiện thực**: chúng khác `src/` về thuật toán.
-
-| | `legacy/` | `src/transdetect/` (báo cáo) |
-|---|---|---|
-| `epsilon` của ngưỡng | `0.5` | `1e-3` |
-| Giá trị trả về của ngưỡng | `int(T)` | `(mask, float T)` |
-| Phép hình thái | `MORPH_CLOSE` (giãn + mòn) | chỉ `dilate` |
-| Chế độ contour | `RETR_EXTERNAL` | `RETR_LIST` |
-| Định dạng box | `(x, y, w, h)` | `[x1, y1, x2, y2]` |
-| Lọc diện tích | chỉ `min_area` | `min_area` **và** `max_area` |
-| Lọc tỉ lệ khung | không có | hai phía, `0.25 ≤ w/h ≤ 4.0` |
-| Optical flow | hàm rời, người gọi tự giữ trạng thái | class `LucasKanadeTracker` tự giữ |
-| Ngưỡng Sobel mặc định | `50` | `40` |
-| Có demo `__main__` | có (`cv2.imshow`) | không |
-
-Các file ở thư mục **gốc** về bản chất cũng là legacy:
+Các file ở thư mục **gốc** vẫn còn, về bản chất cũng là legacy:
 
 - **`yolo_detector.py` (gốc)** — hàm rời `load_model / detect_frame / draw_boxes`,
   trả **tuple** `(x1,y1,x2,y2,name,conf)` thay vì dict, và **không lọc lớp phương
