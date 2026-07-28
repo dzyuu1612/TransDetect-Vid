@@ -254,7 +254,11 @@ def main():
 
             st.divider()
             st.markdown('<p class="section-title">Detection Method</p>', unsafe_allow_html=True)
-            st.radio("method", ["Classical Pipeline", "YOLO11"], captions=["Threshold + Sobel + Contour", "Ultralytics YOLO11"], label_visibility="collapsed", key="method_selector")
+            # Caption phai khop dung nhung gi nhanh Classical THAT SU chay o
+            # duoi (dong ~460-467): tien xu ly + threshold + Sobel + contour
+            # DE TIM BOX, roi Lucas-Kanade DE VE mui ten chuyen dong. Truoc day
+            # caption chi ghi "Threshold + Sobel + Contour", bo sot Lucas-Kanade.
+            st.radio("method", ["Classical Pipeline", "YOLO11"], captions=["Threshold + Sobel + Contour + Lucas-Kanade", "Ultralytics YOLO11"], label_visibility="collapsed", key="method_selector")
 
             st.divider()
             st.markdown('<p class="section-title">Parameters</p>', unsafe_allow_html=True)
