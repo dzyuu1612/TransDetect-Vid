@@ -109,11 +109,38 @@ Quy trình điền: gán nhãn → chạy `evaluate_pipelines.py` → mở
 `summary_metrics.csv` → chép số thật vào Bảng 4.5 → viết nhận xét dựa trên
 số thật. **Không điền số ước lượng.**
 
+### Sửa bố cục phát hiện qua bản render
+
+Ba lỗi chỉ lộ ra khi render thật, không thấy được khi đọc cấu trúc file:
+
+1. **Thứ tự số hiệu bảng sai.** Bảng kết quả mới được chèn ngay sau các hình
+   (trang 45), tức là *trước* bảng "Kỳ vọng định tính" (trang 46), nhưng ban
+   đầu lại được đánh số 4.5 — danh mục bảng hiện ra 4.5 rồi mới tới 4.4. Đã
+   đánh số lại: bảng kết quả thành **Bảng 4.4**, bảng kỳ vọng định tính thành
+   **Bảng 4.5**, kèm sửa mọi tham chiếu trong thân bài.
+2. **Trang trắng ở trang 50.** Nguyên nhân: một paragraph rỗng có chứa ngắt
+   trang nằm ngay trước "PHỤ LỤC A" — paragraph rỗng đó chiếm trọn một trang
+   rồi ngắt trang mới đẩy Phụ lục sang trang kế. Đã xoá paragraph rỗng và đặt
+   `page_break_before` trực tiếp lên heading. Tài liệu giảm từ 56 xuống 55
+   trang, không còn trang trắng nào.
+3. **Bảng kết quả bị tách qua hai trang**, khiến dòng YOLO11n đứng lẻ ở đầu
+   trang, rời khỏi dòng tiêu đề. Đã đặt `cantSplit` cho từng dòng,
+   `keepNext` cho các paragraph trong bảng và cho đoạn dẫn, cùng `tblHeader`
+   để dòng tiêu đề tự lặp lại nếu vẫn phải tách.
+
+### Kiểm tra bản render
+
+Xuất PDF bằng Word COM rồi phân tích bằng PyMuPDF:
+
+| Hạng mục | Kết quả |
+|---|---|
+| Trang trắng | Không còn (đã sửa trang 50) |
+| Lỗi `Error! Reference source not found` | Không có |
+| Tiếng Việt có dấu | Render đúng, không lỗi font |
+| Placeholder | 11/11 hiển thị đúng trong PDF |
+| Thứ tự Bảng 4.1 → 4.5 | Đúng cả trong danh mục lẫn thân bài |
+| Mục lục / Danh mục hình / Danh mục bảng | Đã cập nhật, có Bảng 4.4 mới |
+
 ### Còn tồn đọng
 
-- Số trang trong Mục lục / Danh mục hình / Danh mục bảng có thể lệch sau khi
-  thêm Bảng 4.5. Cách sửa: mở file trong Word, `Ctrl+A` → `F9` → chọn
-  "Update entire table".
-- Chưa render toàn bộ DOCX ra PDF để kiểm tra trực quan (tràn bảng, trang
-  trắng, lỗi font). Máy hiện không có LibreOffice, còn tự động hoá Word bị
-  chậm/treo nhiều lần trong phiên làm việc này.
+- Chưa có tập ground truth, nên Bảng 4.4 vẫn để placeholder (xem mục trên).
