@@ -747,24 +747,43 @@ Hàm này chỉ chạm `det["bbox"]/["class"]/["confidence"]` — toàn kiểu P
 Đó chính là ý của §3.5.1: khối hiển thị không bao giờ thấy tensor Ultralytics.
 
 ```python
-def draw_motion_vectors(frame, points, motion_vectors):                 # dòng 46
-    output = frame.copy()                                               # dòng 48
-    for (xc, yc), (u, v) in zip(points, motion_vectors):                # dòng 49
-        p_curr = (int(xc), int(yc))                                     # dòng 50
-        p_prev = (int(xc - u), int(yc - v))                             # dòng 51 — dựng lại vị trí t
-        cv2.arrowedLine(output, p_prev, p_curr, (0,0,255), 2, tipLength=0.4)  # dòng 52
-        cv2.circle(output, p_curr, 3, (255,0,0), -1)                    # dòng 53
-    return output                                                       # dòng 54
+def draw_motion_vectors(frame, points, motion_vectors, display_scale=5.0):  # dòng 46
+    output = frame.copy()                                               # dòng 58
+    for (xc, yc), (u, v) in zip(points, motion_vectors):                # dòng 59
+        p_curr = (int(xc), int(yc))                                     # dòng 60
+        p_prev = (int(xc - u * display_scale), int(yc - v * display_scale))  # dòng 61
+        cv2.arrowedLine(output, p_prev, p_curr, (0,0,255), 2, tipLength=0.4)  # dòng 62
+        cv2.circle(output, p_curr, 3, (255,0,0), -1)                    # dòng 63
+    return output                                                       # dòng 64
 ```
-`zip()` (dòng 49) ghép hai mảng, lặp đồng thời từng cặp `(điểm, vector)`.
+`zip()` (dòng 59) ghép hai mảng, lặp đồng thời từng cặp `(điểm, vector)`.
 
-Dòng 51 — logic hay: hàm nhận vị trí **hiện tại** rồi *dựng ngược* vị trí trước
+**Vì sao có `display_scale=5.0` (thêm sau khi phát hiện mũi tên vô hình
+trên video thật):** thử nghiệm tổng hợp với chuyển động 4 px/frame — con số
+thực tế cho video 25-30 FPS — cho thấy `motion_vectors` được Lucas-Kanade
+tính **đúng** (đo lại được đúng 4.00 px), nhưng khi vẽ đúng tỉ lệ 1:1, mũi
+tên dài 4 px bị chấm tròn bán kính 3 px ở dòng 63 che gần hết, và Dashboard
+còn thu nhỏ khung hình về 480p trước khi hiển thị (§3.7) khiến nó nhỏ hơn
+nữa — kết quả là người dùng chỉ thấy chấm xanh, không thấy mũi tên đỏ nào,
+dù thuật toán chạy hoàn toàn đúng. Đây thuần túy là vấn đề **hiển thị**, không
+phải lỗi tính toán.
+
+Dòng 61 nhân `u`, `v` với `display_scale` **chỉ** khi tính điểm đuôi mũi
+tên `p_prev` — phóng đại độ dài mũi tên lên gấp 5 lần cho dễ nhìn. Điểm đầu
+mũi tên `p_curr` (dòng 60, cũng là tâm chấm tròn) **không đổi**, vẫn đúng vị
+trí thật 100%. Giá trị `motion_vectors` mà hàm này *nhận vào* không hề bị
+sửa — việc phóng đại chỉ xảy ra cục bộ trong phép vẽ, không lan ra bất kỳ
+biến nào khác. Vì CSV/JSON xuất ra (§3.7) không chứa dữ liệu chuyển động
+(chỉ có `frame_id, class_name, confidence, count`), việc phóng đại này
+**không ảnh hưởng đến bất kỳ số liệu báo cáo nào**, chỉ ảnh hưởng phần vẽ.
+
+Dòng 61 — logic hay khác: hàm nhận vị trí **hiện tại** rồi *dựng ngược* vị trí trước
 bằng cách trừ vector chuyển động. Nhờ vậy mũi tên vẽ từ `p_prev` → `p_curr`, tức
 chỉ đúng **hướng di chuyển**.
 
-Dòng 52: `(0,0,255)` là **đỏ** trong BGR. `tipLength=0.4` = đầu mũi tên dài 40%
+Dòng 62: `(0,0,255)` là **đỏ** trong BGR. `tipLength=0.4` = đầu mũi tên dài 40%
 thân.
-Dòng 53: `(255,0,0)` là **xanh dương** trong BGR. Tham số `-1` cuối = tô đặc hình
+Dòng 63: `(255,0,0)` là **xanh dương** trong BGR. Tham số `-1` cuối = tô đặc hình
 tròn (số dương sẽ là độ dày viền).
 
 ### 2.7 `__init__.py` — khai báo package
