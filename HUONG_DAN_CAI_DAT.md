@@ -15,11 +15,16 @@ Repository: <https://github.com/dzyuu1612/TransDetect-Vid>
 TransDetect-Vid/
 ├── requirements.txt
 ├── pyproject.toml
+├── main.py                   # CLI, gọi src/transdetect/pipeline.py
 ├── app_streamlit.py          # Web dashboard, dùng package transdetect
+├── train_yolo.py             # Huấn luyện / đánh giá YOLO11
+├── CODE_WALKTHROUGH.md       # Giải thích mã nguồn từng dòng
 ├── datasets/
 │   ├── README.md             # Nguồn + giấy phép dataset (kèm link)
 │   └── configs/
 │       └── example_data.yaml
+├── notebooks/
+│   └── TransDetect_Vid_Colab_Demo.ipynb
 └── src/
     └── transdetect/
         ├── __init__.py
@@ -34,6 +39,22 @@ TransDetect-Vid/
 
 Bố cục package `src/` theo chuẩn "src layout" của Python Packaging Authority:
 <https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/>
+
+### File cũ còn nằm trong repo (KHÔNG dùng cho báo cáo)
+
+Những file dưới đây là bản trước khi refactor, giữ lại để không phá vỡ tham
+chiếu cũ. Chúng **không** được import bởi `main.py` hay `app_streamlit.py`, và
+**khác thuật toán** so với `src/transdetect/`. Chi tiết khác biệt xem bảng so
+sánh ở Mục 4 của `CODE_WALKTHROUGH.md`.
+
+| File | Là gì | Vì sao đừng trích vào báo cáo |
+|---|---|---|
+| `legacy/preprocessing.py` | bản nháp chú thích từng dòng | trùng chức năng với `src/transdetect/preprocessing.py` |
+| `legacy/classical_detector.py` | bản nháp | dùng `MORPH_CLOSE` + `RETR_EXTERNAL`, box `(x,y,w,h)`, không lọc `max_area`/tỉ lệ khung |
+| `legacy/optical_flow.py` | bản nháp | hàm rời, người gọi tự giữ trạng thái điểm |
+| `yolo_detector.py` (gốc) | API cũ | trả tuple thay vì dict, **không lọc lớp phương tiện** |
+| `app.py` | dashboard Streamlit cũ | hard-code `runs\detect\motorbike_yolo11n\weights\best.pt` |
+| `run_demo.py` | thử nhanh 1 ảnh | hard-code đường dẫn máy cá nhân, không chạy được |
 
 ---
 
@@ -57,18 +78,39 @@ pyproject.toml: <https://setuptools.pypa.io/en/latest/userguide/development_mode
 
 ## 3. Chạy bằng package transdetect
 
-Pipeline được gom trong `src/transdetect/pipeline.py`. Ví dụ chạy trong Python:
+Pipeline được gom trong `src/transdetect/pipeline.py`.
+
+### Chạy bằng CLI (cách trong Phụ lục A.2)
+
+```bash
+# Nhánh truyền thống — video kết quả có box ứng viên VÀ mũi tên Lucas-Kanade
+python main.py --input test_videos/sg2.mp4 --method classical \
+    --output outputs/classical_out.mp4
+
+# Nhánh YOLO11
+python main.py --input test_videos/sg2.mp4 --method yolo \
+    --model yolo11n.pt --conf 0.25 --iou 0.45 --max-det 300 \
+    --output outputs/yolo_out.mp4
+```
+
+Bỏ trống `--conf/--iou/--max-det` thì giá trị rơi về `src/transdetect/config.py`,
+nên chỉ có một nguồn chân lý duy nhất cho tham số mặc định.
+
+Đường dẫn video sai sẽ raise `FileNotFoundError` ngay lập tức, không còn âm thầm
+ghi ra file rỗng.
+
+### Hoặc gọi trực tiếp trong Python
 
 ```python
 from transdetect import pipeline
 
-# Nhánh truyền thống (Threshold + Sobel + Lucas-Kanade)
-pipeline.run_classical("data/sample.mp4", "outputs/classical_out.mp4")
-
-# Nhánh YOLO11
-pipeline.run_yolo("data/sample.mp4", "outputs/yolo_out.mp4",
+pipeline.run_classical("test_videos/sg2.mp4", "outputs/classical_out.mp4")
+pipeline.run_yolo("test_videos/sg2.mp4", "outputs/yolo_out.mp4",
                   model_path="yolo11n.pt", conf=0.25, iou=0.45)
 ```
+
+> Thư mục `test_videos/` và `outputs/` không có trong repo (`.gitignore` loại
+> media). Tự tạo `test_videos/` và bỏ video vào; `outputs/` được pipeline tự tạo.
 
 ### Streamlit
 
@@ -91,16 +133,25 @@ Tài liệu Streamlit: <https://docs.streamlit.io/get-started>
 
 ### Ghi chú về lọc lớp YOLO11
 
-Báo cáo (Listing 3.4) dùng COCO ID `{2, 3, 5, 7}` (car, motorcycle, bus, truck).
-Đây là chỉ số chuẩn trong bộ nhãn MS COCO:
-<https://docs.ultralytics.com/datasets/detect/coco/>
+`yolo_detector.py` lọc **hoàn toàn theo tên lớp**, không dùng COCO ID ở bất kỳ
+đâu — kể cả làm phương án dự phòng. Điều này khớp Mục 3.5 của báo cáo v14: "Các
+COCO ID {2, 3, 5, 7} chỉ mô tả ánh xạ của trọng số chuẩn, không phải điều kiện
+lọc đang dùng trong source."
 
-Tuy nhiên model fine-tune trên dataset Roboflow có thứ tự lớp khác COCO (xem
-`datasets/README.md`). Vì vậy `yolo_detector.py` lọc theo **tên lớp** trước
-(`model.names`) và chỉ dùng COCO ID làm phương án dự phòng — cách này chạy đúng
-cho cả model COCO pre-trained lẫn model tự huấn luyện. Thuộc tính `model.names`
-được mô tả trong tài liệu Ultralytics Predict mode:
-<https://docs.ultralytics.com/modes/predict/>
+Lý do: model fine-tune trên dataset Roboflow có thứ tự lớp khác COCO (xem
+`datasets/README.md`), nên lọc theo ID sẽ lấy nhầm lớp. Lọc theo tên chạy đúng
+cho cả trọng số COCO pre-trained lẫn model tự huấn luyện.
+
+Cơ chế gồm hai bảng, đặt ở hai tầng khác nhau:
+
+| Bảng | Ở đâu | Vai trò |
+|---|---|---|
+| `VEHICLE_NAMES` (6 tên) | `src/transdetect/yolo_detector.py` | Tầng phát hiện: giữ box nếu `model.names[class_id]` (đã `.strip().lower()`) nằm trong tập này |
+| `CLASS_ALIAS` (6 → 4) | `src/transdetect/config.py` | Tầng hiển thị: gộp `motorbike → Motorcycle`, `container truck → Truck` cho khớp 4 ô đếm trên UI |
+
+Tên nào không có trong `CLASS_ALIAS` sẽ bị **loại bỏ**, không bao giờ cộng nhầm
+sang lớp khác. Thuộc tính `model.names` được mô tả trong tài liệu Ultralytics
+Predict mode: <https://docs.ultralytics.com/modes/predict/>
 
 ---
 
@@ -139,4 +190,25 @@ Không commit token, API key hay đường dẫn máy cá nhân vào repo. Nếu
 secret, hãy thu hồi (revoke) ngay tại nơi cấp. Tham khảo hướng dẫn xử lý secret
 bị lộ của GitHub:
 <https://docs.github.com/en/code-security/secret-scanning/about-secret-scanning>
+
+---
+
+## 8. Các điểm chưa khớp còn tồn đọng
+
+Ghi lại để không quên, xếp theo mức ưu tiên:
+
+1. **`train_yolo.py` chưa có argparse.** `datasets/README.md` hướng dẫn
+   `python train_yolo.py --data ... --model-size n --epochs 50`, nhưng file thực
+   tế hard-code 4 đường dẫn tuyệt đối `D:\1ComputerVisionProject1\...` trong
+   `__main__` — mâu thuẫn với chính Mục 7 ở trên. Danh sách đó còn chứa dataset
+   biển báo giao thông, thứ mà Mục 6 tuyên bố nằm ngoài phạm vi.
+2. **Nhãn dataset đang bị commit.** `.gitignore` chặn ảnh (0 file ảnh trong
+   repo) nhưng không chặn `.txt`, nên 4.534 file nhãn vẫn nằm trong lịch sử Git,
+   trái với ghi chú "KHÔNG commit ảnh/nhãn" ở Phụ lục A.1 của báo cáo.
+3. **Cần đo lại FPS ở Bảng 4.3.** Dashboard vừa được bổ sung Lucas-Kanade cho
+   nhánh Classical (mỗi frame chạy thêm `calcOpticalFlowPyrLK`, và
+   `goodFeaturesToTrack` mỗi khi tập điểm cạn), nên khoảng 6,4–14,6 FPS trong
+   báo cáo không còn phản ánh code hiện tại.
+4. **`README.md` là bản trước refactor**, còn ghi `classical_detector.py`,
+   `preprocessing.py`, `optical_flow.py` nằm ở thư mục gốc.
 

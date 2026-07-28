@@ -16,6 +16,7 @@ import json
 # Add project root to path so we can import src package
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.transdetect import config, preprocessing, classical_detector, visualization
+from src.transdetect.optical_flow import LucasKanadeTracker
 from src.transdetect.yolo_detector import Yolo11VehicleDetector
 
 # ═══════════════════════════════════════════════════════════════
@@ -398,6 +399,14 @@ def main():
         last_fps_frame_idx = frame_idx
         instant_fps = 0.0
         
+        # Muc 3.4: bo theo vet giu trang thai diem dac trung qua cac frame, nen
+        # phai khoi tao MOT LAN truoc vong lap. prev_gray = None o frame dau
+        # (chua co frame truoc de tinh optical flow).
+        lk_tracker = None
+        prev_gray = None
+        if st.session_state.method_selector == "Classical Pipeline":
+            lk_tracker = LucasKanadeTracker()
+
         yolo_detector = None
         if st.session_state.method_selector == "YOLO11":
             try:
@@ -435,11 +444,27 @@ def main():
             if st.session_state.method_selector == "Classical Pipeline":
                 pre = preprocessing.preprocess_frame(frame, config.MEDIAN_KERNEL_SIZE)
                 boxes, _, _ = classical_detector.detect_vehicle_candidates(
-                    pre, min_area=config.MIN_CONTOUR_AREA, max_aspect_ratio=config.MAX_ASPECT_RATIO
+                    pre,
+                    min_area=config.MIN_CONTOUR_AREA,
+                    max_area=config.MAX_CONTOUR_AREA,
+                    max_aspect_ratio=config.MAX_ASPECT_RATIO,
+                    edge_threshold=config.SOBEL_EDGE_THRESHOLD,
                 )
                 candidate_count = len(boxes)
                 counts = {n: 0 for n in config.DISPLAY_CLASSES}
                 frame_to_draw = visualization.draw_classical_boxes(frame.copy(), boxes)
+
+                # Muc 3.1/3.4: Lucas-Kanade chay tren anh xam THO, khong dung
+                # `pre`. equalizeHist doi anh xa cuong do o TUNG frame, lam vi
+                # pham gia dinh do sang khong doi cua LK (Muc 2.5.1).
+                curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                if prev_gray is not None and lk_tracker is not None:
+                    points, motion = lk_tracker.track_features(prev_gray, curr_gray)
+                    if len(points) > 0:
+                        frame_to_draw = visualization.draw_motion_vectors(
+                            frame_to_draw, points, motion
+                        )
+                prev_gray = curr_gray
             else:
                 counts = {n: 0 for n in config.DISPLAY_CLASSES}
                 if yolo_detector:

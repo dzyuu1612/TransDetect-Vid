@@ -9,8 +9,9 @@ Gom hai nhánh xử lý video theo đúng sơ đồ Mục 3.1 của báo cáo.
   -> ghi video.
 """
 
+import os
+
 import cv2
-import numpy as np
 
 from . import config
 from . import preprocessing
@@ -20,17 +21,47 @@ from .optical_flow import LucasKanadeTracker
 from .yolo_detector import Yolo11VehicleDetector
 
 
+def _open_capture(input_path):
+    """Mở video đầu vào và bảo đảm đọc được TRƯỚC khi vào vòng lặp frame.
+
+    Không có bước kiểm tra này, một đường dẫn sai sẽ khiến cap.read() trả về
+    False ngay ở frame đầu tiên: vòng lặp thoát lập tức và chương trình in ra
+    "Đã lưu video kết quả" dù file kết quả rỗng.
+    """
+    cap = cv2.VideoCapture(input_path)
+    if not cap.isOpened():
+        raise FileNotFoundError(f"Không mở được video đầu vào: {input_path}")
+    return cap
+
+
 def _open_writer(cap, output_path):
     fps = cap.get(cv2.CAP_PROP_FPS) or 25
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Kích thước phải hợp lệ, vì VideoWriter chỉ ghi được frame đúng bằng
+    # (width, height) đã khai báo; sai kích thước thì write() không làm gì cả.
+    if width <= 0 or height <= 0:
+        cap.release()
+        raise ValueError(
+            f"Video đầu vào báo kích thước không hợp lệ: {width}x{height}"
+        )
+
+    # Thư mục đích phải tồn tại sẵn, nếu không VideoWriter thất bại im lặng.
+    output_dir = os.path.dirname(os.path.abspath(output_path))
+    os.makedirs(output_dir, exist_ok=True)
+
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    return cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    if not writer.isOpened():
+        cap.release()
+        raise IOError(f"Không khởi tạo được VideoWriter cho: {output_path}")
+    return writer
 
 
 def run_classical(input_path, output_path):
     """Chạy nhánh truyền thống trên toàn bộ video."""
-    cap = cv2.VideoCapture(input_path)
+    cap = _open_capture(input_path)
     writer = _open_writer(cap, output_path)
     tracker = LucasKanadeTracker()
     prev_gray = None
@@ -72,7 +103,7 @@ def run_yolo(input_path, output_path, model_path=None, conf=None, iou=None,
     iou = config.IOU_THRESHOLD if iou is None else iou
     max_det = config.MAX_DET if max_det is None else max_det
 
-    cap = cv2.VideoCapture(input_path)
+    cap = _open_capture(input_path)
     writer = _open_writer(cap, output_path)
 
     while True:
