@@ -1,171 +1,71 @@
-# TransDetect-Vid — Phát hiện phương tiện trong video
+# 🏍️ Motorbike & Car Detector (YOLO11 & Classical CV)
 
-Hệ thống phát hiện phương tiện giao thông (ô tô, xe máy, xe buýt, xe tải)
-trong video theo hai hướng tiếp cận song song:
+Dự án này là một hệ thống phát hiện phương tiện giao thông (ô tô, xe máy) trong video và hình ảnh. Dự án cung cấp hai phương pháp tiếp cận:
+1. **Phương pháp Deep Learning (YOLO11):** Sử dụng mô hình YOLO11 mới nhất để nhận diện độ chính xác cao.
+2. **Phương pháp Truyền thống (Classical Computer Vision):** Sử dụng các kỹ thuật xử lý ảnh thủ công (Thresholding, Sobel, Optical Flow) để nhận diện và theo dõi vật thể chuyển động.
 
-1. **Pipeline truyền thống** — các phép biến đổi ảnh thủ công: cân bằng
-   histogram, lọc trung vị, ngưỡng hoá lặp, Sobel, trích contour, kèm
-   Lucas-Kanade Optical Flow để trực quan hoá chuyển động.
-2. **Pipeline học sâu** — YOLO11n (Ultralytics) phát hiện và phân loại
-   phương tiện trực tiếp trên từng khung hình.
-
-Có cả giao diện dòng lệnh (CLI) và dashboard web (Streamlit).
+Dự án cung cấp cả giao diện dòng lệnh (CLI) và giao diện Web (Streamlit).
 
 ---
 
-## Cấu trúc mã nguồn
+## 📂 Cấu Trúc Mã Nguồn (Source Code)
 
-### Module lõi — `src/transdetect/`
-
-Đây là mã nguồn chính, đúng những gì báo cáo trích trong Listing 3.1–3.4.
-
-| File | Vai trò |
-|---|---|
-| `config.py` | Toàn bộ tham số tập trung một chỗ (ngưỡng, kernel, conf/IoU) |
-| `preprocessing.py` | Ảnh xám → cân bằng histogram → lọc trung vị |
-| `classical_detector.py` | Ngưỡng hoá lặp + Sobel + contour → vùng ứng viên |
-| `optical_flow.py` | `LucasKanadeTracker` — theo dõi điểm đặc trưng thưa |
-| `yolo_detector.py` | `Yolo11VehicleDetector` — bọc Ultralytics, lọc lớp phương tiện |
-| `visualization.py` | Vẽ box, nhãn và vector chuyển động lên khung hình |
-| `pipeline.py` | Gom hai nhánh thành luồng xử lý video hoàn chỉnh |
-
-### Điểm chạy
-
-| File | Vai trò |
-|---|---|
-| `main.py` | CLI — gọi `src/transdetect/pipeline.py` |
-| `app_streamlit.py` | Dashboard web, dùng trực tiếp các module lõi |
-| `train_yolo.py` | Huấn luyện / đánh giá YOLO11 trên dataset tuỳ chỉnh |
-
-### Đánh giá định lượng
-
-| File | Vai trò |
-|---|---|
-| `prepare_evaluation_frames.py` | Trích N frame phân bố đều từ video |
-| `evaluate_pipelines.py` | Chấm điểm Precision/Recall/F1 cho cả hai pipeline |
-| `evaluation/` | Ảnh, nhãn ground truth và kết quả (xem `evaluation/README.md`) |
-
-### File cũ, không dùng cho báo cáo
-
-`app.py`, `yolo_detector.py` (ở thư mục gốc) và `run_demo.py` là bản trước
-khi refactor, giữ lại để tham khảo. Chúng **không** được `main.py` hay
-`app_streamlit.py` import, và cài đặt khác với `src/transdetect/`.
+- **`app.py`**: Giao diện Web UI bằng Streamlit. Cho phép người dùng tải lên hình ảnh hoặc video để nhận diện bằng mô hình YOLO trực quan trên trình duyệt.
+- **`main.py`**: File chạy chính trên giao diện dòng lệnh (CLI). Cho phép chọn chạy giữa pipeline truyền thống (`classical`) hoặc `yolo`.
+- **`train_yolo.py`**: Script dùng để huấn luyện (train) và đánh giá (evaluate) mô hình YOLO11 trên dataset tùy chỉnh của bạn.
+- **`yolo_detector.py`**: Các hàm tiện ích hỗ trợ nhận diện bằng YOLO (tải mô hình, phát hiện trên frame, vẽ bounding box).
+- **`classical_detector.py`**: Pipeline phát hiện truyền thống, sử dụng phương pháp ngưỡng (thresholding) lặp tự động kết hợp với đạo hàm Sobel để tìm ứng viên vùng (candidate boxes).
+- **`preprocessing.py`**: Chứa các bước tiền xử lý ảnh cho phương pháp truyền thống (chuyển ảnh xám, cân bằng sáng Histogram, lọc nhiễu Median (Median Filter)).
+- **`optical_flow.py`**: Ứng dụng thuật toán Lucas-Kanade (Optical Flow) để theo dõi các điểm chuyển động liên tục giữa các frame (cho phương pháp truyền thống).
+- **`run_demo.py`**: Một script nhỏ để chạy thử mô hình YOLO trực tiếp trên 1 ảnh kiểm thử và lưu kết quả.
 
 ---
 
-## Cài đặt
+## 🚀 Hướng Dẫn Cài Đặt
+
+Trước khi chạy, hãy đảm bảo bạn đã cài đặt Python. Sau đó, cài đặt các thư viện cần thiết bằng lệnh sau:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-source .venv/bin/activate       # Linux/macOS
-
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install numpy opencv-python ultralytics streamlit
 ```
 
 ---
 
-## Sử dụng
+## 🖥️ Hướng Dẫn Sử Dụng
 
-### Dashboard web
+### 1. Giao Diện Web Trực Quan (Streamlit)
+Cách nhanh nhất và trực quan nhất để thử nghiệm là dùng Web UI. Giao diện hỗ trợ tải lên cả Video (`.mp4`, `.avi`, `.mov`) và Ảnh (`.jpg`, `.png`).
 
 ```bash
 streamlit run app_streamlit.py
 ```
+> **Lưu ý:** Lệnh này sẽ mở ra một trang web trên trình duyệt. Tại đây bạn có thể kéo thả file vào để nhận diện và điều chỉnh độ tin cậy (Confidence) ngay trên thanh trượt.
 
-Cho phép chọn video, chọn phương pháp, chỉnh ngưỡng conf/IoU, xem FPS thời
-gian thực và xuất kết quả ra CSV/JSON.
+### 2. Sử Dụng Giao Diện Dòng Lệnh (CLI)
+Bạn có thể chạy trực tiếp video qua command line với file `main.py`.
 
-### Dòng lệnh
-
+**Chạy với YOLO:**
 ```bash
-# Nhánh truyền thống (có vẽ mũi tên Lucas-Kanade)
-python main.py --input test_videos/video.mp4 --method classical \
-    --output outputs/classical_out.mp4
-
-# Nhánh YOLO11
-python main.py --input test_videos/video.mp4 --method yolo \
-    --model yolo11n.pt --conf 0.25 --iou 0.45 --max-det 300 \
-    --output outputs/yolo_out.mp4
+python main.py --input path_to_video.mp4 --output result.mp4 --method yolo --model runs/detect/motorbike_yolo11n/weights/best.pt
 ```
 
-Bỏ trống `--conf/--iou/--max-det` thì giá trị lấy từ
-`src/transdetect/config.py`, nên chỉ có một nguồn chân lý cho mặc định.
+**Chạy với Phương Pháp Truyền Thống (Classical):**
+```bash
+python main.py --input path_to_video.mp4 --output result.mp4 --method classical
+```
+
+### 3. Huấn Luyện Mô Hình (Training)
+Nếu bạn có tập dữ liệu mới và muốn huấn luyện lại YOLO11:
+1. Chuẩn bị tập dữ liệu (có file `data.yaml`).
+2. Sửa đường dẫn dataset trong phần `if __name__ == "__main__":` của file `train_yolo.py`.
+3. Chạy lệnh:
+```bash
+python train_yolo.py
+```
+Mô hình tốt nhất sau khi huấn luyện sẽ được lưu tự động tại: `runs/detect/<tên_run>/weights/best.pt`.
 
 ---
 
-## Quy trình đánh giá định lượng
-
-So sánh hai pipeline bằng Precision, Recall và F1 tại ngưỡng IoU ≥ 0,5, đánh
-giá **class-agnostic** (gộp Car/Motorcycle/Bus/Truck thành `vehicle`). Phải
-gộp lớp vì pipeline truyền thống chỉ sinh vùng ứng viên, không phân loại
-được loại xe — so sánh có phân biệt lớp sẽ đo nhầm khả năng *phân loại* thay
-vì khả năng *định vị*.
-
-### Bước 1 — Kiểm thử code (không cần dữ liệu)
-
-```bash
-python -m compileall .
-python evaluate_pipelines.py --selftest
-```
-
-Kết quả mong đợi: `23/23 KIỂM THỬ ĐỀU PASS`.
-
-### Bước 2 — Trích frame phân bố đều
-
-```bash
-python prepare_evaluation_frames.py --video "duong_dan/video.mp4" --count 100
-```
-
-Sinh ảnh vào `evaluation/images/` và ghi `evaluation/frame_manifest.csv`
-(ảnh nào ứng với frame nào, ở giây thứ mấy).
-
-### Bước 3 — Gán nhãn thủ công
-
-Dùng LabelImg, CVAT hoặc Roboflow Annotate. Xuất định dạng YOLO vào
-`evaluation/labels/`, mỗi ảnh một file `.txt` cùng tên (kể cả file rỗng nếu
-frame không có phương tiện). Chỉ gán 4 lớp trong `evaluation/classes.txt`.
-
-**Không dùng dự đoán của YOLO làm ground truth** — nếu lấy output của model
-làm chuẩn rồi chấm điểm chính model đó, kết quả thành vòng lặp tự khẳng định
-và vô nghĩa.
-
-### Bước 4 — Kiểm tra nhãn
-
-```bash
-python evaluate_pipelines.py --validate-only
-```
-
-Kiểm tra 12 điều kiện (thiếu nhãn, sai `class_id`, toạ độ ngoài `[0,1]`,
-box suy biến…) mà không nạp model. Chỉ đi tiếp khi không còn lỗi.
-
-### Bước 5 — Chạy đánh giá
-
-```bash
-python evaluate_pipelines.py
-```
-
-Kết quả tại `evaluation/results/`:
-
-| File | Nội dung |
-|---|---|
-| `summary_metrics.csv` | TP/FP/FN, Precision, Recall, F1 của từng pipeline |
-| `per_frame_metrics.csv` | Số liệu chi tiết theo từng khung hình |
-| `run_metadata.json` | Commit, SHA256 model, mọi tham số, phiên bản thư viện |
-
-`run_metadata.json` là bằng chứng để tái lập: nếu sau này thư viện đổi mặc
-định, file này cho biết kết quả cũ sinh ra dưới cấu hình nào.
-
----
-
-## Lưu ý
-
-- `yolo11n.pt` (bản Nano) nhẹ, chạy được cả trên CPU.
-- Pipeline truyền thống giữ lại với mục đích giải thích: quan sát được từng
-  phép biến đổi trung gian. Nó **không** phân loại được loại xe và **không**
-  duy trì ID phương tiện qua các khung hình.
-- Lucas-Kanade trong dự án chỉ theo dõi và trực quan hoá điểm đặc trưng —
-  chưa gán điểm vào bounding box, chưa phải multi-object tracking.
-- Các bộ đếm trên dashboard là số detection **theo từng khung hình**, không
-  phải tổng số phương tiện duy nhất đi qua video.
+## 📌 Lưu Ý Thêm
+- **YOLO11** được tối ưu cực kỳ tốt, trong dự án sử dụng bản `yolo11n.pt` (Nano) rất nhẹ, phù hợp chạy ngay cả trên CPU thông thường.
+- Phương pháp **Classical** được giữ lại trong mã nguồn với mục đích giáo dục, giúp hiểu rõ bản chất của xử lý ảnh, tuy nhiên độ chính xác và tính ổn định không thể so sánh với YOLO.

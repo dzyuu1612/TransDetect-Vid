@@ -1,191 +1,168 @@
 # Revisions to `TransDetect-Vid_BaoCao_v14.docx` — status
 
 Tracks what's been applied directly to the live docx
-(`C:\Users\dzyuu\Downloads\CVFINAL\TransDetect-Vid_BaoCao_v14.docx`). This is
-the **current, accurate snapshot** — earlier revisions of this file described
-intermediate states (e.g. Figure 4.1 at frame 122 with FPS 8,9–9,2) that have
-since been superseded by further rounds of fixes; only what's below still
-reflects the live document.
-
-Backups on disk, in chronological order:
-`...BEFORE_AUTO_EDIT.docx` → `...BEFORE_SG3_EDIT.docx` →
-`...BEFORE_ARROW_NOTE.docx` → `...BEFORE_IMG_SWAP.docx` →
-`...BEFORE_RECT_FIX.docx` → `...BEFORE_TOC_UPDATE.docx` →
-`...BEFORE_FINAL_FIX.docx` (most recent, right before today's final round).
+(`C:\Users\dzyuu\Downloads\CVFINAL\TransDetect-Vid_BaoCao_v14.docx`) vs what's
+still outstanding. Backups kept alongside it:
+`TransDetect-Vid_BaoCao_v14.BEFORE_AUTO_EDIT.docx` (before the first pass),
+`TransDetect-Vid_BaoCao_v14.BEFORE_SG3_EDIT.docx` (before the sg(3)-only
+rewrite of Chapter 4).
 
 ---
 
 ## Done
 
-### Repo-level (kept for context, not part of today's docx-only rounds)
-
-- **`legacy/` deleted** — nothing imported it, and it implemented the
-  algorithms *differently* from `src/transdetect/` (`MORPH_CLOSE` vs
-  `dilate`, `RETR_EXTERNAL` vs `RETR_LIST`, `(x,y,w,h)` vs `xyxy`, no
-  max-area/aspect filter, Sobel default 50 vs 40). Recoverable via
+- **A3.** §3.7 now states the Dashboard's Classical branch also runs
+  Lucas-Kanade and draws the motion arrows, matching what the code does.
+- **A4.** Appendix A.4's verification note rewritten — no longer references
+  the stale Colab traceback; notes the notebook is cleaned but still needs
+  one real Colab run for evidence, and flags that Cell 6 needs a tunnel
+  service to be reachable from a browser.
+- **B1.** Appendix A.1's folder tree now lists the previously-missing files
+  (`app.py`, `yolo_detector.py` at root, `run_demo.py`, `pyproject.toml`,
+  `pyrightconfig.json`, `HUONG_DAN_CAI_DAT.md`, `UI_REQUIREMENTS.md`,
+  `CODE_WALKTHROUGH.md`), with a note that the pre-refactor files aren't
+  imported by `main.py`/`app_streamlit.py`.
+- **`legacy/` deleted** from the repo and from the A.1 tree. Nothing imported
+  it, and it implemented the algorithms *differently* from
+  `src/transdetect/` (`MORPH_CLOSE` vs `dilate`, `RETR_EXTERNAL` vs
+  `RETR_LIST`, `(x,y,w,h)` vs `xyxy`, no max-area/aspect filter, Sobel
+  default 50 vs 40) — so a reviewer who opened it could reasonably conclude
+  the source didn't match Listings 3.1–3.3. Its line-by-line comments are
+  fully superseded by `CODE_WALKTHROUGH.md`. Recoverable via
   `git log -- legacy/`.
-- **`datasets/` kept**, docs-only (~23 KB) — carries the CC BY 4.0
-  attribution for the three Roboflow datasets referenced by §3.5.3.
-- **~4,540 committed dataset label files removed** from git, plus the
-  out-of-scope traffic-sign dataset. "KHÔNG commit ảnh/nhãn" in Appendix
-  A.1 is now literally true.
+- **`datasets/` kept** (~23 KB, docs only — no images or labels remain).
+  It carries the CC BY 4.0 attribution for the three Roboflow datasets and
+  explains where the `container truck` entry in `VEHICLE_NAMES` came from,
+  which §3.5.3 of the report refers to. No code reads it (`train_yolo.py`
+  hard-codes absolute paths elsewhere), so it is documentation rather than a
+  dependency — but attribution for licensed data is worth keeping.
 
-### YOLO11 architecture claims — §2.6.1, §2.6.4, §3.5.2
+### Figure 4.1 replaced with a current Classical Pipeline screenshot
 
-Verified by direct measurement before touching the text: fed a 1280×720
-frame to `model.predict()` with no `rect` argument (matching what
-`yolo_detector.py` actually does — it never passes `rect` or `imgsz`), and
-hooked the model's forward call. Actual tensor: **[1, 3, 384, 640]**, not
-640×640. Corresponding grid count: 80×48 + 40×24 + 20×12 = **5040**
-positions, not 8400.
+The old figure was replaced with a freshly captured Dashboard screenshot
+(same `sg(3)` video, Classical Pipeline, current code including the fixed
+Lucas-Kanade arrows). **Figure 4.2 (YOLO11) was left untouched.**
 
-- 640×640 / 8400 is now framed explicitly as the **illustrative** case
-  (kept, per your instruction, since it's still the clean number for
-  explaining P3/P4/P5).
-  1280×720 / 640×384 / 5040 is presented as what the project's own test
-  video actually produces, measured directly — not asserted.
-- Table 2.3's Detect row already hedged correctly ("số vị trí thay đổi nếu
-  tensor đầu vào là hình chữ nhật") — left as-is, no change needed there.
+The caption now matches the inserted image exactly: frame 74, FPS 14.4
+current / 14.8 average, 20 candidate boxes.
 
-### Lucas-Kanade over-claims — §2.5, §3.4, §3.4.1, §3.7 (×2), §1.3
+**Caveat worth knowing:** that capture was taken through an automated
+(headless) browser, which skips on-screen rendering and therefore reports a
+*higher* FPS than a normal browser session — the user's own run of the same
+video showed 9.0/9.4. Table 4.3 and the paragraph above it were widened to
+`8,9–14,8` and now state explicitly that the Dashboard FPS includes browser
+redraw cost, quoting both figures. If you would rather the report show only
+the normal-browser numbers, save your own screenshot and it can be swapped
+in with the caption and table reverted to ~9 FPS.
+- **B2.** Fixed at the repo level, not the sentence: removed ~4,540 committed
+  dataset label files and the out-of-scope traffic-sign dataset from git
+  (commit `0770bd7`). "KHÔNG commit ảnh/nhãn" in A.1 is now literally true.
+- **B4.** Table 3.1's Contour row now lists the max-area filter and the
+  two-sided aspect-ratio filter, matching the prose in §3.3.
+- **Yellow-highlighted "needs update" block** (§4.3 through end of Chapter 5,
+  47 runs) — cleared once the content it was flagging got real numbers.
 
-- §2.5 and §3.4: removed the implication that optical flow output is used to
-  decide whether a candidate box is "real" motion vs static noise. The code
-  never associates points to boxes — reworded to state that plainly.
-- §3.4.1: removed the "80/100 points, mean 0.67 px" figure — no committed
-  script/log backs it as a reproducible number (the measurement was a
-  one-off diagnostic in a chat session, not checked into the repo).
-  Replaced with a generic, honest statement: the 1px display threshold is a
-  prototype visualization parameter, not a validated/optimized one.
-- §3.7 (both the Dashboard description and the "Theo dõi tiến trình
-  Real-time" bullet): clarified that points/arrows and candidate boxes are
-  only drawn on the same frame, not assigned to each other, and that all
-  Dashboard counters are per-frame, not unique-vehicle totals.
-- §1.3: added an explicit paragraph — no multi-object tracking, no ID
-  persistence, counts are per-frame detections/candidates only.
+### Chapter 4 restructured to a single demo video (sg(3) only)
 
-### Section 1.1 / 1.2 — scope wording
+This was the resolution for A1 + B3 together, once real Dashboard numbers
+for `sg(3)` became available (screenshot: Classical Pipeline, FPS current
+9.2 / average 8.9, resolution 1280×720, 21 candidate boxes at frame 122,
+source frame rate 59.94 FPS, duration 00:00:13):
 
-- §1.1: "phát hiện và đếm phương tiện" → "phát hiện, phân loại và thống kê
-  số detection phương tiện theo từng frame... chưa duy trì ID nên không
-  đếm tổng số phương tiện duy nhất."
-- §1.2: "so sánh theo FPS và độ chính xác tương đối" → "so sánh theo FPS
-  quan sát và đánh giá định tính; chưa có ground truth nên chưa tính
-  Precision/Recall/mAP."
+- Removed old Figure 4.1 and 4.2 (both `sg(2)`, no re-measurement available
+  for that video) — image + caption paragraphs deleted.
+- Renumbered old Figure 4.3 → **Figure 4.1** (Classical, `sg(3)`) and old
+  Figure 4.4 → **Figure 4.2** (YOLO11, `sg(3)`).
+- Figure 4.1's caption rewritten with the real measured numbers above,
+  replacing the `[CẦN ĐO LẠI...]` placeholder and the stale "Dashboard bản
+  trước khi sửa" sentence.
+- Table 4.1 (`Bảng 4.1`): removed the `sg(2)` row; `sg(3)` row's frame rate
+  updated from the earlier estimate ("≈30 FPS, metadata UI") to the real
+  value read off the Dashboard ("59,94 FPS").
+- Table 4.3 (`Bảng 4.3`): Classical FPS range `6,4–14,6` → `8,9–9,2` (now a
+  single video, and Classical is slower than before because Lucas-Kanade
+  now runs every frame on the Dashboard too — see A3). YOLO11 range
+  `21,4–25,4` → `25,4` (only `sg(3)`'s value remains relevant).
+- §4.1 and the paragraph before Table 4.3 reworded from "hai video" (two
+  videos) to "một video" (one video) accordingly.
+- Chapter 3's Figure 3.1 (§3.2.1, illustrates preprocessing on an `sg(2)`
+  frame) was **not** touched — that's a different, unrelated figure (a
+  Chapter 3 pedagogy illustration, not a Chapter 4 experimental result), and
+  the specific source video doesn't matter for its purpose.
 
-### Figure 4.1 (Classical) and Figure 4.2 (YOLO11) — both re-captured live
+**If this reading of "giữ 1 cái sg3 thôi" was wrong** (e.g. you actually
+wanted `sg(2)` re-measured and kept, not dropped), the pre-edit state is in
+`TransDetect-Vid_BaoCao_v14.BEFORE_SG3_EDIT.docx` — say so and it gets
+restored from there.
 
-Both driven through the actual running Dashboard (Playwright automation),
-on the same real uploaded video (`duong_pho_sg(3).mp4`, 1280×720, 59.94 FPS
-source), **CPU only — no GPU available on this machine**:
+### Shi-Tomasi mentions — kept, simplified where it seemed to matter
 
-- **Figure 4.1** (Classical + Lucas-Kanade): frame 74, headless-browser
-  session, FPS current 14.4 / average 14.8, 20 candidate boxes. Caption
-  states explicitly this is a headless capture and that a normal
-  interactive-browser session on the same machine/video reads lower
-  (~8.9–9.4 FPS) — the two conditions are not conflated.
-- **Figure 4.2** (YOLO11n): frame 83, same headless conditions, FPS current
-  15.3 / average 14.9, 25 total detections (Car 6, Motorcycle 18, Bus 0,
-  Truck 1), all confidences ≥ 0.31 (above the 0.25 threshold — addresses the
-  earlier concern that the old Figure 4.2 might have shown sub-threshold
-  boxes). Caption no longer claims `imgsz=640` is a project default — the
-  code only passes `conf`, `iou`, `max_det`, `device`, `verbose` to
-  `model.predict()`; `imgsz=640` is Ultralytics' own default, stated as such.
-
-### Table 4.3 — rebuilt as a 5-column table, no more merged "ranges"
-
-Old table conflated **Current FPS** and **Average FPS** (two different
-metrics from the *same* single run) into a fake "8,9–14,8" min–max range, as
-if they were repeated-trial statistics. Rebuilt with separate columns:
-
-| Phương pháp | Chế độ đo | FPS tức thời | Average FPS | Ghi chú |
-|---|---|---|---|---|
-| Threshold + Sobel + contour + Lucas-Kanade | CPU laptop, headless, frame 74 | 14,4 | 14,8 | Số quan sát từ Hình 4.1 |
-| YOLO11n | CPU laptop, headless, frame 83 | 15,3 | 14,9 | Số quan sát từ Hình 4.2 |
-
-Caption renamed to "FPS quan sát trên Dashboard trong các phiên chạy được
-ghi lại; đây không phải benchmark thuật toán." A note is inserted right
-below the table restating that these are end-to-end demo-session numbers
-(video read + inference + draw + UI update), not pure inference benchmarks.
-The old GPU number (25.4 FPS) is **no longer in the table** — it's
-mentioned in the preceding paragraph as a prior team measurement whose GPU
-(RTX 3060 vs Colab T4) was never confirmed, so it isn't used for comparison.
-
-### Appendix A.4 — rewritten twice this session, now matches the real notebook code
-
-First pass matched the notebook's 6 markdown sections (clone → deps →
-model → video → run → compare). Second pass went further: the two
-`!python main.py --input INPUT_VIDEO ...` placeholder commands were replaced
-with the **actual** `subprocess.run([...])` Python calls the notebook uses
-(including `--conf 0.25 --iou 0.45 --max-det 300`, which the placeholder
-commands omitted). Also added a sentence citing the exact commit being
-cross-referenced (`6920c6ac879c8e1c93a662a8dca2dda965c45563`) at the start
-of §4.1.
-
-**Self-caught bug:** this rewrite deleted the manual page-break that used to
-sit before "TÀI LIỆU THAM KHẢO" (it lived on a paragraph that got replaced).
-Restored via `page_break_before = True` on that heading directly.
-
-### Style bug fixed: Listing captions were polluting the table-of-tables
-
-All 4 `Listing 3.x` captions used the same Word style as table captions
-(`Caption Bang`), so "Danh mục bảng biểu" would have listed Listings as if
-they were tables once refreshed. Created a dedicated `Caption Listing`
-style and reassigned all 4 — confirmed Danh mục bảng biểu now shows exactly
-the 10 real tables, nothing else.
-
-### Mục lục / Danh mục hình ảnh / Danh mục bảng biểu — refreshed via Word COM automation
-
-python-docx can't compute real pagination (needs Word's layout engine), so
-this repo's copy of Microsoft Word was driven via COM automation
-(PowerShell `New-Object -ComObject Word.Application`) to open the file,
-call `Fields.Update()` + `TablesOfContents.Item(n).Update()` for all 3 TOC
-fields, and save — equivalent to `Ctrl+A → F9 → Update entire table`, done
-without you touching Word.
-
-**Root cause found and fixed along the way:** the two list-fields' raw field
-codes read `\t "CaptionHinh,1"` / `\t "CaptionBang,1"` (no space), but the
-actual paragraph styles are named `"Caption Hinh"` / `"Caption Bang"` (with
-a space) — Word matches by literal display name, so the mismatch meant
-these two lists always resolved to "No table of contents entries found.",
-independent of whether they'd ever been refreshed. Fixed the field code text
-directly, then re-ran the update. Confirmed final state: Mục lục has all
-chapter/section entries with real page numbers; Danh mục hình ảnh lists all
-5 figures; Danh mục bảng biểu lists all 10 tables (and no Listings).
+The three Shi-Tomasi mentions in the docx (§2.5.2 theory, §3.4.1 ×2) were
+**not removed** — `cv2.goodFeaturesToTrack` (Shi-Tomasi corner detection) is
+literally what the code calls to pick which points Lucas-Kanade tracks, so
+removing it would make the report describe an incomplete algorithm. Instead,
+`CODE_WALKTHROUGH.md`'s explanation (which used denser linear-algebra
+language, "AᵀA gần suy biến") was rewritten in plain terms — what a "corner"
+is, why a flat region or a single straight edge isn't trackable, why Lucas-
+Kanade needs corners specifically. If the docx's own three mentions still
+feel too dense, say which one and it can get the same simplification.
 
 ---
 
-## Explicitly dropped for this round (your call)
+### Motion-arrow drawing rule documented in §3.4.1
 
-### Layout pass (blank pages, orphan lines, page breaks around chapter starts)
-
-Word COM automation on this machine hung or ran extremely slowly for
-anything beyond a plain field update — page-by-page scanning
-(`Repaginate()` + `GoTo` loop) and PDF export (`ExportAsFixedFormat`,
-`SaveAs2`) each either timed out or took several minutes with no output,
-across three separate attempts. A static XML scan (checking every
-page-break point, including table content, for suspiciously short gaps)
-found **no structural double-break issues** — so if blank pages remain,
-they're a product of Word's actual page layout (font metrics, image
-sizing), not something visible in the raw document structure.
-
-You said to drop this and move on. If you want it revisited later: open the
-file yourself in Word, note the actual current page numbers of any blank or
-orphan-line pages you see, and that gives something concrete to fix instead
-of me guessing blindly.
+Added a sentence after the Listing 3.3 discussion explaining the display
+convention, because a reader looking at the figure will see ~20 arrows over
+~100 dots and reasonably wonder why: every tracked point draws a blue dot,
+but only points displaced ≥1 px draw a red arrow. Measured on the real
+sg(3) video, ~80/100 points sit on static background with mean displacement
+0.67 px (sub-pixel noise), so arrowing them would render noise as motion.
+Arrow length is fixed for visibility after the UI downscale; direction is
+always the true measured (u,v).
 
 ---
 
-## Still open
+## Outstanding
 
-- **Figure 3.3 (Lucas-Kanade motion vectors, §3.4.1)** — you have a real
-  screenshot with visible arrows, but it only exists as a pasted chat image
-  with no file path on disk, so it can't be embedded. Save it to a file
-  (e.g. `d:\CV\sg3_dashboard.png`) and give the path.
-- **`train_yolo.py`** still has no CLI (`argparse`) despite
-  `datasets/README.md` documenting `--data`/`--model-size`/`--epochs`, and
-  hard-codes machine-specific paths including the out-of-scope traffic-sign
-  dataset. Not part of any docx-only round so far — still just noted.
-- **`README.md`** still describes the pre-refactor file layout.
+### Caption numbers in Figure 4.1 may not match your final screenshot
 
-Neither of the last two blocks the docx; fix if there's time.
+Figure 4.1's caption currently reads "FPS ≈ 8,9–9,2" and "21 candidate
+boxes", taken from the earlier screenshot (frame 122). Your most recent
+screenshot shows FPS 9.0/9.4 and 25 candidate boxes at frame 18 — different
+frame, so different counts, which is expected. **Whichever screenshot you
+finally insert, check these two numbers in the caption match it**, or tell
+me the numbers and I'll update the caption.
+
+### Insert Figure 3.3 — Lucas-Kanade motion vectors (§3.4.1)
+
+You already have a real screenshot (Dashboard, Classical Pipeline, `sg(3)`,
+visible red arrows + blue dots on the moving vehicles). It hasn't been
+inserted yet because it only exists as a pasted image in chat — there's no
+file path on disk to embed. Save it to a file (e.g.
+`d:\CV\sg3_dashboard.png` or anywhere in `Downloads`) and give the path;
+insertion point is right after §3.4.1's Listing 3.3 discussion, before §3.5,
+as:
+
+> Hình 3.3: Trường vector chuyển động Lucas–Kanade trên video sg(3). Mũi tên
+> đỏ nối vị trí điểm đặc trưng ở frame trước đến frame hiện tại (đã phóng
+> đại độ dài mũi tên ×5 chỉ để dễ nhìn, xem `display_scale` ở
+> `visualization.py`); chấm xanh là vị trí hiện tại. Điểm được khởi tạo
+> bằng Shi–Tomasi và chỉ giữ lại khi status = 1; module ước lượng chuyển
+> động của điểm, chưa gán ID cho từng phương tiện.
+
+### Docx currently open in Word
+
+The file was locked (`~$...docx` present) during this session; edits only
+went through after it was closed. If you reopen it in Word, close it again
+before asking for further automated edits, or the next save will fail the
+same way (harmlessly — nothing gets corrupted, the save just doesn't happen).
+
+### C1/C2 — still optional, unchanged from before
+
+- `train_yolo.py` has no CLI (`argparse`) despite `datasets/README.md`
+  documenting `--data`/`--model-size`/`--epochs` flags, and hard-codes
+  machine-specific paths including the out-of-scope traffic-sign dataset.
+- `README.md` still describes the pre-refactor file layout (root-level
+  `classical_detector.py` etc.).
+
+Neither blocks the docx; fix if there's time.
