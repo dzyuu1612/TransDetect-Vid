@@ -22,6 +22,7 @@ Chọn một trong hai kịch bản ở Phần 0 rồi đi thẳng theo nó.
   - [2.7 `__init__.py`](#27-__init__py--khai-báo-package)
 - [Phần 3 — Kịch bản B: Dashboard (`app_streamlit.py`)](#phần-3--kịch-bản-b-dashboard-app_streamlitpy)
 - [Phần 3.8 — Sửa lỗi tương phản chữ (theme + màu CSS)](#phần-38--sửa-lỗi-tương-phản-chữ-theme--màu-css)
+  - [3.8.4 — Mũi tên Lucas-Kanade bị chấm tròn che mất](#384-mũi-tên-lucas-kanade-bị-chấm-tròn-che-mất)
 - [Phần 4 — `legacy/` và các script cũ](#phần-4--legacy-và-các-script-cũ)
 - [Phần 5 — Sơ đồ tổng](#phần-5--sơ-đồ-tổng)
 
@@ -52,7 +53,8 @@ KỊCH BẢN B — Dashboard
     app_streamlit.py  →  {config, preprocessing, classical_detector,
                           optical_flow, yolo_detector, visualization}
     KHÔNG đi qua pipeline.py. Kết quả: hiển thị trực tiếp trên trình duyệt
-    + xuất CSV/JSON. Đây là nguồn của Hình 4.1–4.4.
+    + xuất CSV/JSON. Đây là nguồn của Hình 4.1–4.2 (báo cáo hiện chỉ minh
+      hoạ bằng một video, sg(3) — xem ghi chú ở Mục 3.8.4).
 ```
 
 Điểm mấu chốt: **Dashboard không dùng `pipeline.py`.** Nó gọi thẳng các module
@@ -580,9 +582,22 @@ Buộc gieo lại điểm ở frame kế tiếp.
             self.prev_points = cv2.goodFeaturesToTrack(                 # dòng 41
                 prev_gray, mask=None, **self.feature_params)            # dòng 42
 ```
-**Gieo lười:** Shi–Tomasi chỉ chạy khi tập điểm đã cạn. §2.5.2 giải thích lý do —
-vùng phẳng cho AᵀA gần suy biến (không giải được), nên phải chọn điểm góc nơi
-AᵀA có điều kiện tốt.
+**Gieo lười:** Shi–Tomasi chỉ chạy khi tập điểm đã cạn.
+
+**Shi-Tomasi là gì, nói đơn giản:** đây là thuật toán tìm "điểm góc" trong ảnh
+— nơi có cạnh rõ theo cả hai hướng ngang và dọc cùng lúc (ví dụ góc biển số,
+góc mui xe, góc cửa sổ), khác với:
+- **vùng phẳng** (mặt đường trống, mảng trời) — không có cạnh nào để bám;
+- **đường thẳng một hướng** (vạch kẻ đường) — có cạnh nhưng chỉ theo 1 hướng,
+  không biết điểm trượt dọc theo vạch bao xa.
+
+Lucas-Kanade **bắt buộc cần điểm góc** để theo dõi chính xác: ở vùng phẳng
+hoặc đường thẳng, xung quanh điểm trông giống hệt nhau theo ít nhất một
+hướng, nên thuật toán không xác định được nó đã di chuyển bao nhiêu theo
+hướng đó. Ở điểm góc, độ sáng thay đổi rõ theo cả x và y, nên vị trí mới
+được xác định chắc chắn. Đây chính là lý do §2.5.2 nêu: "OpenCV thường chọn
+điểm góc tốt bằng Shi-Tomasi trước khi dùng `calcOpticalFlowPyrLK`" —
+`goodFeaturesToTrack` ở dòng 41 chính là bước gọi Shi-Tomasi đó.
 
 `**self.feature_params` là **dict unpacking**: bung dict thành các tham số có
 tên, tương đương gõ `maxCorners=100, qualityLevel=0.3, ...`.
@@ -1452,6 +1467,32 @@ page.screenshot(path="dashboard_dark.png", full_page=True)
 Sau khi ép `base = "light"`, ảnh chụp với `color_scheme="dark"` và
 `color_scheme="light"` cho kết quả **giống hệt nhau** — đúng như mong đợi,
 vì giờ theme không còn phụ thuộc vào lựa chọn của trình duyệt nữa.
+
+### 3.8.4 Mũi tên Lucas-Kanade bị chấm tròn che mất
+
+Chạy thử trên video thật (`sg(3)`), Dashboard hiện đúng các chấm xanh (điểm
+đặc trưng) nhưng **không thấy mũi tên đỏ nào** dù code đã chạy Lucas-Kanade
+đúng (§3.8 phần trước). Kiểm tra bằng thử nghiệm tổng hợp: đưa vào chuyển
+động 4 px/frame (mức thực tế cho video 25-30 FPS), `LucasKanadeTracker` đo
+lại **đúng** 4,00 px — thuật toán không sai. Vấn đề là **vẽ**: mũi tên dài
+4px bị chấm tròn bán kính 3px (`visualization.py`, `cv2.circle(..., 3, ...)`)
+vẽ đè lên gần như che kín, rồi Dashboard còn thu nhỏ khung hình về 480p
+trước khi hiển thị (§3.7) khiến nó nhỏ hơn nữa.
+
+**Sửa:** `draw_motion_vectors` trong `src/transdetect/visualization.py`
+thêm tham số `display_scale=5.0`, chỉ nhân vào toạ độ điểm đuôi mũi tên
+(`p_prev`) khi vẽ — điểm đầu (`p_curr`, cũng là tâm chấm tròn) và giá trị
+`motion_vectors` mà hàm *nhận vào* không hề đổi:
+
+```python
+p_prev = (int(xc - u * display_scale), int(yc - v * display_scale))
+```
+
+Vì CSV/JSON xuất ra không chứa dữ liệu chuyển động (chỉ có
+`frame_id, class_name, confidence, count`), việc phóng đại này thuần vẽ,
+không ảnh hưởng số liệu báo cáo. Xác nhận bằng ảnh trước/sau trên cùng dữ
+liệu tổng hợp: trước khi sửa, mũi tên gần như vô hình; sau khi sửa,
+`display_scale=5.0` cho mũi tên rõ ràng chỉ đúng hướng.
 
 ---
 

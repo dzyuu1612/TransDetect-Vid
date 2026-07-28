@@ -1,189 +1,114 @@
-# Revisions needed in `TransDetect-Vid_BaoCao_v14.docx`
+# Revisions to `TransDetect-Vid_BaoCao_v14.docx` — status
 
-Checklist of edits to bring the report back in sync with the current code in
-this repo (`main`, commit after "Fix dashboard parameter wiring..."). Grouped
-by priority. Each item gives the location, what's wrong, and suggested text.
-
----
-
-## A. Required — the code changed since v14 was written
-
-### A1. Re-measure Table 4.3 (FPS)
-
-**Why:** the Classical branch in the Dashboard now also runs Lucas–Kanade
-optical flow every frame (`goodFeaturesToTrack` + `calcOpticalFlowPyrLK`),
-which it did not do when the 6.4–14.6 FPS numbers were recorded. Those numbers
-no longer reflect the current code.
-
-**Action:** re-run both `sg(2)` and `sg(3)` on the Dashboard, Classical method,
-and record new FPS ranges. The YOLO11 numbers (21.4–25.4) are unaffected and
-can stay as-is.
-
-### A2. Add a figure for the motion-vector output — §3.4.1
-
-**Why:** §3.4.1 (Listing 3.3) currently has no figure, unlike §3.2.1 (Figure
-3.1) and §3.3.1 (Figure 3.2). The Dashboard now draws Lucas–Kanade arrows, so
-there is something to show.
-
-**Where:** insert right after Listing 3.3 discussion, before §3.5.
-
-**Suggested caption (Figure 3.3):**
-> Hình 3.3: Trường vector chuyển động Lucas–Kanade giữa hai khung hình liên
-> tiếp của sg(2). Mũi tên đỏ nối vị trí điểm đặc trưng ở frame t đến frame
-> t+1; chấm xanh là vị trí hiện tại. Điểm được khởi tạo bằng Shi–Tomasi và chỉ
-> giữ lại khi status = 1; module ước lượng chuyển động của điểm, chưa gán ID
-> cho từng phương tiện.
-
-Renumber: this becomes **Figure 3.3**; all Chapter 4 figure numbers stay the
-same (they are still 4.1–4.4).
-
-### A3. Update §3.7 (Dashboard description)
-
-**Why:** §3.7 describes counters and parameters but never states that the
-Classical branch on the Dashboard runs Lucas–Kanade. §3.1 already promises
-this for the pipeline; the Dashboard just didn't implement it before.
-
-**Action:** add one sentence, e.g.:
-> Nhánh truyền thống trên Dashboard cũng chạy Lucas-Kanade Optical Flow trên
-> từng cặp khung hình liên tiếp, vẽ vector chuyển động (mũi tên đỏ) đè lên các
-> vùng ứng viên, giống hệt luồng CLI ở Mục 3.4.1.
-
-### A4. Update the verification note in Appendix A.4
-
-**Current text (end of A.4):**
-> Lưu ý kiểm chứng: notebook công khai hiện còn lưu output từ đường dẫn
-> Windows và các lần chạy lỗi do URL/path mẫu, đồng thời data/sample.mp4
-> không có trong repo. Trước khi nộp, nhóm cần xóa output cũ, chạy lại toàn bộ
-> notebook trên Colab bằng URL và video upload ở trên, rồi lưu output thành
-> công; notebook hiện tại chưa đủ làm bằng chứng một phiên Colab tái lập hoàn
-> chỉnh.
-
-**Why it's stale:** the notebook has already been cleaned — stale outputs
-(Windows paths, failed traceback from `process_yolo`/`YOLOConfig`, which no
-longer exist) were removed, the clone URL now points at the real repo, and
-all 6 cells match the flow documented in A.4.
-
-**Suggested replacement:**
-> Lưu ý kiểm chứng: notebook đã được dọn output cũ và các cell hiện khớp với
-> luồng mô tả ở trên (clone repo thật, cài thư viện, tải model, upload video,
-> chạy CLI cho cả hai nhánh, khởi chạy Streamlit). Nhóm vẫn cần tự chạy lại
-> toàn bộ trên Colab một lần và lưu output thành công để làm bằng chứng một
-> phiên tái lập hoàn chỉnh. Lưu ý Cell 6 chỉ khởi chạy Streamlit trong nền
-> (`> streamlit.log 2>&1 &`); Colab không tự lộ cổng 8501 ra ngoài, nên truy
-> cập từ trình duyệt cần thêm một dịch vụ tunnel (ngrok/localtunnel), không có
-> sẵn trong notebook hiện tại.
+Tracks what's been applied directly to the live docx
+(`C:\Users\dzyuu\Downloads\CVFINAL\TransDetect-Vid_BaoCao_v14.docx`) vs what's
+still outstanding. Backups kept alongside it:
+`TransDetect-Vid_BaoCao_v14.BEFORE_AUTO_EDIT.docx` (before the first pass),
+`TransDetect-Vid_BaoCao_v14.BEFORE_SG3_EDIT.docx` (before the sg(3)-only
+rewrite of Chapter 4).
 
 ---
 
-## B. Required — pre-existing mismatches (not caused by recent edits)
+## Done
 
-### B1. Appendix A.1 folder tree is missing real files
+- **A3.** §3.7 now states the Dashboard's Classical branch also runs
+  Lucas-Kanade and draws the motion arrows, matching what the code does.
+- **A4.** Appendix A.4's verification note rewritten — no longer references
+  the stale Colab traceback; notes the notebook is cleaned but still needs
+  one real Colab run for evidence, and flags that Cell 6 needs a tunnel
+  service to be reachable from a browser.
+- **B1.** Appendix A.1's folder tree now lists the previously-missing files
+  (`legacy/`, `app.py`, `yolo_detector.py` at root, `run_demo.py`,
+  `pyproject.toml`, `pyrightconfig.json`, `HUONG_DAN_CAI_DAT.md`,
+  `UI_REQUIREMENTS.md`, `CODE_WALKTHROUGH.md`), with a note that the
+  pre-refactor files aren't imported by `main.py`/`app_streamlit.py`.
+- **B2.** Fixed at the repo level, not the sentence: removed ~4,540 committed
+  dataset label files and the out-of-scope traffic-sign dataset from git
+  (commit `0770bd7`). "KHÔNG commit ảnh/nhãn" in A.1 is now literally true.
+- **B4.** Table 3.1's Contour row now lists the max-area filter and the
+  two-sided aspect-ratio filter, matching the prose in §3.3.
+- **Yellow-highlighted "needs update" block** (§4.3 through end of Chapter 5,
+  47 runs) — cleared once the content it was flagging got real numbers.
 
-**Current tree** lists only: `requirements.txt`, `README.md`, `main.py`,
-`app_streamlit.py`, `train_yolo.py`, `.streamlit/`, `test_videos/`,
-`datasets/`, `outputs/`, `notebooks/`, `src/transdetect/`.
+### Chapter 4 restructured to a single demo video (sg(3) only)
 
-**Missing from the actual repo:** `app.py` (a second, older Streamlit UI),
-`yolo_detector.py` (a second YOLO module at root, tuple-based API, no vehicle
-filter), `run_demo.py`, `legacy/` (frozen teaching drafts of preprocessing /
-classical_detector / optical_flow), `pyproject.toml`, `pyrightconfig.json`,
-`HUONG_DAN_CAI_DAT.md`, `UI_REQUIREMENTS.md`, `CODE_WALKTHROUGH.md`.
+This was the resolution for A1 + B3 together, once real Dashboard numbers
+for `sg(3)` became available (screenshot: Classical Pipeline, FPS current
+9.2 / average 8.9, resolution 1280×720, 21 candidate boxes at frame 122,
+source frame rate 59.94 FPS, duration 00:00:13):
 
-**Action:** add these to the tree, with one line noting that `legacy/`,
-`app.py`, `yolo_detector.py` (root), and `run_demo.py` are pre-refactor
-prototypes retained for reference only — they are not imported by `main.py`
-or `app_streamlit.py` and are out of scope for the Listings in Chapter 3.
+- Removed old Figure 4.1 and 4.2 (both `sg(2)`, no re-measurement available
+  for that video) — image + caption paragraphs deleted.
+- Renumbered old Figure 4.3 → **Figure 4.1** (Classical, `sg(3)`) and old
+  Figure 4.4 → **Figure 4.2** (YOLO11, `sg(3)`).
+- Figure 4.1's caption rewritten with the real measured numbers above,
+  replacing the `[CẦN ĐO LẠI...]` placeholder and the stale "Dashboard bản
+  trước khi sửa" sentence.
+- Table 4.1 (`Bảng 4.1`): removed the `sg(2)` row; `sg(3)` row's frame rate
+  updated from the earlier estimate ("≈30 FPS, metadata UI") to the real
+  value read off the Dashboard ("59,94 FPS").
+- Table 4.3 (`Bảng 4.3`): Classical FPS range `6,4–14,6` → `8,9–9,2` (now a
+  single video, and Classical is slower than before because Lucas-Kanade
+  now runs every frame on the Dashboard too — see A3). YOLO11 range
+  `21,4–25,4` → `25,4` (only `sg(3)`'s value remains relevant).
+- §4.1 and the paragraph before Table 4.3 reworded from "hai video" (two
+  videos) to "một video" (one video) accordingly.
+- Chapter 3's Figure 3.1 (§3.2.1, illustrates preprocessing on an `sg(2)`
+  frame) was **not** touched — that's a different, unrelated figure (a
+  Chapter 3 pedagogy illustration, not a Chapter 4 experimental result), and
+  the specific source video doesn't matter for its purpose.
 
-### B2. "No images/labels committed" claim in A.1 is only half true
+**If this reading of "giữ 1 cái sg3 thôi" was wrong** (e.g. you actually
+wanted `sg(2)` re-measured and kept, not dropped), the pre-edit state is in
+`TransDetect-Vid_BaoCao_v14.BEFORE_SG3_EDIT.docx` — say so and it gets
+restored from there.
 
-**Current text:** `datasets/README.md — Nguồn Roboflow + giấy phép; KHÔNG
-commit ảnh/nhãn`.
+### Shi-Tomasi mentions — kept, simplified where it seemed to matter
 
-**Actual state:** images: correctly excluded (0 image files tracked in git).
-Labels: **not** excluded — thousands of Roboflow `.txt` label files are
-committed under `datasets/*/`, including a traffic-sign dataset that the
-report itself (§1.3, `datasets/README.md`) declares out of scope.
-
-**Two options — pick one:**
-- Fix the repo: `git rm -r --cached` the dataset label folders, add
-  `datasets/**/labels/` to `.gitignore`, commit. Keep the sentence in the
-  report as-is.
-- Fix the sentence: change to "chỉ commit `data.yaml` và file mô tả nguồn;
-  ảnh và nhãn huấn luyện không nằm trong phạm vi commit chuẩn của repo" — but
-  this is less accurate since labels currently *are* committed.
-
-Recommended: fix the repo (first option), since the report's stated intent
-("KHÔNG commit ảnh/nhãn") is the correct policy — the repo just hasn't
-followed it consistently yet.
-
-### B3. Figure 4.3 caption is stale
-
-**Current caption:**
-> Hình 4.3: Nhánh truyền thống trên video sg(3) (1280p), FPS ≈ 14.6. Tổng
-> candidate boxes hiển thị (30); các nhãn/confidence trong bảng là của
-> Dashboard bản trước khi sửa, đọc là candidate count.
-
-**Why:** the second sentence refers to a since-fixed Dashboard bug and no
-longer describes current behavior. In the current code, the Classical
-branch's results table always shows all-zero counts for Car/Motorcycle/
-Bus/Truck (the branch cannot classify vehicles), and the candidate count only
-appears in the "Vùng ứng viên" card and in the exported CSV/JSON.
-
-**Suggested replacement for the second sentence:**
-> Bảng kết quả trên Dashboard hiển thị 0 cho cả bốn cột Car/Motorcycle/
-> Bus/Truck vì nhánh truyền thống không phân loại được loại xe; số lượng
-> thực (30 vùng ứng viên) chỉ xuất hiện ở ô "Vùng ứng viên" và trong file
-> CSV/JSON xuất ra (class_name="candidate").
-
-(Re-check this caption against the actual re-captured Figure 4.3 once A1's
-FPS re-measurement and new screenshot are done — the box count may differ if
-a different frame is captured.)
-
-### B4. Table 3.1 (pipeline steps) is missing filters already described in §3.3
-
-**Current row:** `Contour | Mask/edge map | Bounding boxes | Lọc theo diện
-tích tối thiểu`.
-
-**Missing:** the maximum-area filter (`MAX_CONTOUR_AREA = 150000`) and the
-two-sided aspect-ratio filter (`0.25 ≤ w/h ≤ 4.0`), both already explained in
-prose in §3.3 but omitted from the summary table.
-
-**Suggested replacement:**
-> Contour | Mask/edge map | Bounding boxes | Lọc theo diện tích tối thiểu VÀ
-> tối đa, cùng tỉ lệ khung hai phía (0,25 ≤ w/h ≤ 4,0)
+The three Shi-Tomasi mentions in the docx (§2.5.2 theory, §3.4.1 ×2) were
+**not removed** — `cv2.goodFeaturesToTrack` (Shi-Tomasi corner detection) is
+literally what the code calls to pick which points Lucas-Kanade tracks, so
+removing it would make the report describe an incomplete algorithm. Instead,
+`CODE_WALKTHROUGH.md`'s explanation (which used denser linear-algebra
+language, "AᵀA gần suy biến") was rewritten in plain terms — what a "corner"
+is, why a flat region or a single straight edge isn't trackable, why Lucas-
+Kanade needs corners specifically. If the docx's own three mentions still
+feel too dense, say which one and it can get the same simplification.
 
 ---
 
-## C. Optional — cleanup, not blocking submission
+## Outstanding
 
-### C1. `train_yolo.py` has no CLI and hard-codes machine-specific paths
+### Insert Figure 3.3 — Lucas-Kanade motion vectors (§3.4.1)
 
-`datasets/README.md` documents `python train_yolo.py --data ... --model-size n
---epochs 50`, but the actual `train_yolo.py` has no `argparse` — the
-`__main__` block hard-codes four absolute Windows paths
-(`D:\1ComputerVisionProject1\...`), one of which is the traffic-sign dataset
-the report declares out of scope. This isn't cited in the report's Listings,
-so it doesn't block the docx, but a reviewer who opens the repo will notice
-the mismatch with `datasets/README.md`.
+You already have a real screenshot (Dashboard, Classical Pipeline, `sg(3)`,
+visible red arrows + blue dots on the moving vehicles). It hasn't been
+inserted yet because it only exists as a pasted image in chat — there's no
+file path on disk to embed. Save it to a file (e.g.
+`d:\CV\sg3_dashboard.png` or anywhere in `Downloads`) and give the path;
+insertion point is right after §3.4.1's Listing 3.3 discussion, before §3.5,
+as:
 
-If you want this fixed in code (not just noted), ask and it can be converted
-to accept `--data`, `--model-size`, `--epochs` like the README already
-promises.
+> Hình 3.3: Trường vector chuyển động Lucas–Kanade trên video sg(3). Mũi tên
+> đỏ nối vị trí điểm đặc trưng ở frame trước đến frame hiện tại (đã phóng
+> đại độ dài mũi tên ×5 chỉ để dễ nhìn, xem `display_scale` ở
+> `visualization.py`); chấm xanh là vị trí hiện tại. Điểm được khởi tạo
+> bằng Shi–Tomasi và chỉ giữ lại khi status = 1; module ước lượng chuyển
+> động của điểm, chưa gán ID cho từng phương tiện.
 
-### C2. `README.md` still describes the pre-refactor layout
+### Docx currently open in Word
 
-It documents `classical_detector.py`, `preprocessing.py`, `optical_flow.py`
-as living at the repo root — they were moved into `src/transdetect/` during
-the refactor. Doesn't affect the docx directly, but worth a pass before
-final submission since it's the first file anyone opens.
+The file was locked (`~$...docx` present) during this session; edits only
+went through after it was closed. If you reopen it in Word, close it again
+before asking for further automated edits, or the next save will fail the
+same way (harmlessly — nothing gets corrupted, the save just doesn't happen).
 
----
+### C1/C2 — still optional, unchanged from before
 
-## Suggested order of work
+- `train_yolo.py` has no CLI (`argparse`) despite `datasets/README.md`
+  documenting `--data`/`--model-size`/`--epochs` flags, and hard-codes
+  machine-specific paths including the out-of-scope traffic-sign dataset.
+- `README.md` still describes the pre-refactor file layout (root-level
+  `classical_detector.py` etc.).
 
-1. **A1** (re-run Dashboard, get real FPS numbers) — needs your machine.
-2. **A2** (capture the motion-vector screenshot) — same session as A1.
-3. Apply **A3, A4, B1, B2 (sentence fix), B3, B4** as text edits in the docx.
-4. Decide on **B2**: fix the repo (remove committed labels) vs. fix the
-   sentence. Recommended: fix the repo.
-5. **C1/C2** — optional, do if time allows.
+Neither blocks the docx; fix if there's time.
