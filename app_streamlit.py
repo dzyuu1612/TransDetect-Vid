@@ -91,18 +91,26 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 .vehicle-card-blue { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #93c5fd; }
 .vehicle-card-green { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1px solid #6ee7b7; }
 .vehicle-icon { font-size: 22px; }
-.vehicle-label { font-size: 11px; font-weight: 600; color: #64748b; margin: 4px 0 2px 0; }
+/* #64748b on this card's light-blue/green background was 4.37:1 — just
+   under the 4.5:1 WCAG AA minimum for normal text. #52606d clears it at
+   5.9-6.1:1 on both card colors. Same #52606d is reused below for every
+   other "muted label on light background" spot so the app has one
+   consistent, verified-readable gray instead of two similar-but-different
+   ones (#64748b / #94a3b8) scattered around. */
+.vehicle-label { font-size: 11px; font-weight: 600; color: #52606d; margin: 4px 0 2px 0; }
 .vehicle-count { font-size: 26px; font-weight: 800; line-height: 1.1; margin: 0; }
 .vehicle-count-blue { color: #1d4ed8; }
 .vehicle-count-green { color: #15803d; }
 
 /* FPS */
 .fps-container { text-align: center; padding: 8px 0; }
-.fps-label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; margin: 0 0 2px 0; }
+/* #94a3b8 on the white card background was 2.56:1 — under half the 4.5:1
+   AA minimum, i.e. genuinely hard to read, not just borderline. */
+.fps-label { font-size: 11px; color: #52606d; font-weight: 600; text-transform: uppercase; margin: 0 0 2px 0; }
 .fps-value { font-size: 48px; font-weight: 800; color: #2563eb; line-height: 1; margin: 0; }
-.fps-unit { font-size: 18px; font-weight: 400; color: #94a3b8; margin-left: 4px; }
+.fps-unit { font-size: 18px; font-weight: 400; color: #52606d; margin-left: 4px; }
 .info-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
-.info-label { color: #64748b; font-weight: 500; }
+.info-label { color: #52606d; font-weight: 500; }
 .info-value { color: #1e293b; font-weight: 600; }
 
 /* Video */
@@ -115,7 +123,7 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 
 /* Table */
 .results-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; background: white; border-radius: 8px; overflow: hidden; }
-.results-table th { background: #f8fafc; color: #64748b; font-weight: 600; padding: 8px; text-align: center; white-space: nowrap; }
+.results-table th { background: #f8fafc; color: #52606d; font-weight: 600; padding: 8px; text-align: center; white-space: nowrap; }
 .results-table th.group-header { font-size: 13px; color: #1e293b; font-weight: 700; border-bottom: 1px solid #e2e8f0; }
 .results-table th.sub-header { font-size: 11px; border-bottom: 2px solid #e2e8f0; }
 .results-table td { padding: 7px 8px; text-align: center; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 12px; }
@@ -130,7 +138,8 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 # ═══════════════════════════════════════════════════════════════
 def _build_results_table(rows, highlight_row_idx=0):
     if not rows:
-        return '<div style="padding: 20px; text-align: center; color: #94a3b8; font-size: 13px; border: 1px dashed #cbd5e1; border-radius: 8px;">No data yet. Run detection.</div>'
+        # #52606d on white: 6.46:1 (was #94a3b8 at 2.56:1 — a real AA failure).
+        return '<div style="padding: 20px; text-align: center; color: #52606d; font-size: 13px; border: 1px dashed #cbd5e1; border-radius: 8px;">No data yet. Run detection.</div>'
         
     html = '<table class="results-table"><thead><tr>'
     html += '<th rowspan="2" class="group-header" style="border-bottom:2px solid #e2e8f0">Frame</th>'
@@ -220,7 +229,7 @@ def main():
                 
             selected_local = st.selectbox("Select from 'test_videos' folder", local_videos)
             
-            st.markdown("<div style='text-align:center; font-size:12px; margin: -5px 0 5px 0; color: #64748b;'>OR</div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align:center; font-size:12px; margin: -5px 0 5px 0; color: #52606d;'>OR</div>", unsafe_allow_html=True)
             
             # 2. File Uploader
             uploaded_file = st.file_uploader("Upload new video", type=["mp4", "avi", "mov"])
@@ -295,11 +304,15 @@ def main():
             controls_placeholder = st.empty()
 
             # Default empty state
+            # video-preview's own background is dark (#0f172a, see CUSTOM_CSS),
+            # so this text needs to go LIGHTER, not darker: #64748b on that
+            # background was only 3.75:1 (under the 4.5:1 AA minimum for
+            # normal-size text); #94a3b8 reaches 6.96:1 on the same background.
             if not st.session_state.is_running:
                 if not st.session_state.uploaded_video_path:
-                    video_placeholder.markdown('<div class="video-preview"><div style="text-align:center;"><div style="font-size:48px; margin-bottom:12px;">🎬</div><div style="color:#64748b; font-size:15px;">Upload a video to start</div></div></div>', unsafe_allow_html=True)
+                    video_placeholder.markdown('<div class="video-preview"><div style="text-align:center;"><div style="font-size:48px; margin-bottom:12px;">🎬</div><div style="color:#94a3b8; font-size:15px;">Upload a video to start</div></div></div>', unsafe_allow_html=True)
                 else:
-                    video_placeholder.markdown('<div class="video-preview"><div style="text-align:center;"><div style="font-size:48px; margin-bottom:12px;">▶️</div><div style="color:#64748b; font-size:15px;">Ready to run detection</div></div></div>', unsafe_allow_html=True)
+                    video_placeholder.markdown('<div class="video-preview"><div style="text-align:center;"><div style="font-size:48px; margin-bottom:12px;">▶️</div><div style="color:#94a3b8; font-size:15px;">Ready to run detection</div></div></div>', unsafe_allow_html=True)
                 controls_placeholder.markdown('<div class="video-controls"><span style="color:#fff; font-size:14px;">▶</span><span class="vc-time">00:00:00 / 00:00:00</span><div class="vc-progress-bar"><div class="vc-progress-fill" style="width:0%"></div></div><span class="vc-speed">1.0x</span></div>', unsafe_allow_html=True)
 
             st.write("")
@@ -331,7 +344,8 @@ def main():
             with perf_c2: res_metric = st.empty()
 
             st.divider()
-            st.markdown('<p class="section-title">Detected Vehicles <span style="color:#94a3b8;font-size:11px;">(Current)</span></p>', unsafe_allow_html=True)
+            # #52606d on white: 6.46:1 (was #94a3b8 at 2.56:1 — a real AA failure).
+            st.markdown('<p class="section-title">Detected Vehicles <span style="color:#52606d;font-size:11px;">(Current)</span></p>', unsafe_allow_html=True)
             vc1, vc2 = st.columns(2)
             with vc1: car_placeholder = st.empty()
             with vc2: moto_placeholder = st.empty()

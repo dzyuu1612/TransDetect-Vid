@@ -1,2 +1,18 @@
 [server]
 maxUploadSize = 1000
+
+# Pin a light theme explicitly. Without this, Streamlit follows the
+# visitor's OS/browser color-scheme preference ("Auto"). app_streamlit.py's
+# custom CSS forces several containers to a light background regardless of
+# theme (see CUSTOM_CSS in app_streamlit.py); if a visitor's system prefers
+# dark mode, every native widget Streamlit doesn't let us restyle via CSS
+# (sliders, checkboxes, radio buttons, number inputs, st.metric, download
+# buttons, dataframes) would render light/white text on top of that forced
+# light background — unreadable. Pinning base="light" here removes that
+# whole class of bug at the source instead of chasing it widget by widget.
+[theme]
+base = "light"
+primaryColor = "#2563eb"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#1e293b"

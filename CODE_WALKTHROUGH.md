@@ -21,6 +21,7 @@ Chọn một trong hai kịch bản ở Phần 0 rồi đi thẳng theo nó.
   - [2.6 `visualization.py`](#26-visualizationpy--vẽ-kết-quả)
   - [2.7 `__init__.py`](#27-__init__py--khai-báo-package)
 - [Phần 3 — Kịch bản B: Dashboard (`app_streamlit.py`)](#phần-3--kịch-bản-b-dashboard-app_streamlitpy)
+- [Phần 3.8 — Sửa lỗi tương phản chữ (theme + màu CSS)](#phần-38--sửa-lỗi-tương-phản-chữ-theme--màu-css)
 - [Phần 4 — `legacy/` và các script cũ](#phần-4--legacy-và-các-script-cũ)
 - [Phần 5 — Sơ đồ tổng](#phần-5--sơ-đồ-tổng)
 
@@ -1280,6 +1281,158 @@ Dòng 589: chạy lại script một lần cuối để nút tải CSV/JSON cậ
 if __name__ == "__main__":                                          # dòng 592
     main()                                                          # dòng 593
 ```
+
+---
+
+## Phần 3.8 — Sửa lỗi tương phản chữ (theme + màu CSS)
+
+Sau khi chạy thử Dashboard, một số chữ khó đọc: nhãn "FPS (CURRENT)", đơn vị
+"fps", chữ "(Current)" cạnh "Detected Vehicles", và dòng "No data yet. Run
+detection." đều gần như biến mất trên nền trắng. Đây không phải cảm tính —
+đo được bằng công thức tương phản WCAG (không dùng thư viện, tự tính bằng
+tay để hiểu rõ công thức):
+
+```python
+def lin(c):                              # tuyến tính hóa một kênh màu (0-255 -> 0-1)
+    c = c / 255.0
+    return c/12.92 if c <= 0.03928 else ((c+0.055)/1.055) ** 2.4
+
+def luminance(hexcolor):                 # độ sáng tương đối của cả màu (0 = đen, 1 = trắng)
+    r, g, b = (int(hexcolor[i:i+2], 16) for i in (0, 2, 4))
+    r, g, b = lin(r), lin(g), lin(b)
+    return 0.2126*r + 0.7152*g + 0.0722*b   # trọng số theo cảm nhận mắt người (giống §2.3 báo cáo)
+
+def contrast(c1, c2):                    # tỉ lệ tương phản giữa 2 màu, luôn ≥ 1
+    l1, l2 = luminance(c1), luminance(c2)
+    l1, l2 = max(l1, l2), min(l1, l2)
+    return (l1 + 0.05) / (l2 + 0.05)     # +0.05 tránh chia cho số quá nhỏ khi cả hai gần đen
+```
+
+Chuẩn WCAG AA yêu cầu **≥ 4.5:1** cho chữ thường, **≥ 3:1** cho chữ lớn
+(≥18px hoặc ≥14px đậm). Chạy hàm `contrast()` cho từng cặp (màu chữ, màu
+nền) trong `CUSTOM_CSS` phát hiện:
+
+| Chữ | Màu cũ trên nền | Tỉ lệ đo được | Kết luận |
+|---|---|---|---|
+| "FPS (CURRENT)", đơn vị "fps" | `#94a3b8` trên `#ffffff` | **2,56:1** | Fail nặng — dưới nửa mức yêu cầu |
+| "No data yet...", "(Current)" | `#94a3b8` trên `#ffffff` | **2,56:1** | Fail nặng |
+| Nhãn "Vùng ứng viên" (thẻ xe) | `#64748b` trên `#eff6ff` | 4,37:1 | Fail sát nút (cần 4,5) |
+| "Upload a video to start" | `#64748b` trên `#0f172a` (nền TỐI) | 3,75:1 | Fail — sai hướng, chữ tối trên nền tối |
+
+### 3.8.1 Nguyên nhân gốc: theme chưa được ép cứng
+
+Trước khi sửa màu CSS, có một nguyên nhân sâu hơn cần xử lý trước.
+`.streamlit/config.toml` trước đây chỉ có:
+
+```toml
+[server]
+maxUploadSize = 1000
+```
+
+Không có mục `[theme]`. Khi không khai báo, Streamlit tự chọn theme
+**sáng hoặc tối theo hệ điều hành/trình duyệt của người xem** ("Auto").
+Nhưng `CUSTOM_CSS` trong `app_streamlit.py` lại **ép cứng nền sáng** cho
+nhiều khối (`[data-testid="stAppViewContainer"] > div:first-child {
+background: #f0f2f6; }`), bất kể theme là gì. Hệ quả: nếu máy người xem
+đang bật dark mode, mọi widget gốc của Streamlit mà CUSTOM_CSS không
+với tới được — slider, checkbox, radio, number_input, `st.metric`, nút
+tải CSV/JSON, bảng dataframe — sẽ tự động đổi sang chữ **màu sáng** (theo
+theme tối), đặt trên nền sáng bị ép cứng phía trên → gần như vô hình.
+Đây là lỗi tương phản có phạm vi rộng nhất, nhưng không xuất hiện trong
+bảng đo ở trên vì bảng đó chỉ đo các đoạn có `color:` viết tay trong
+`CUSTOM_CSS`, không đo được các widget do chính Streamlit tự vẽ.
+
+**Sửa tận gốc** — ghi đè `.streamlit/config.toml` (dòng 13–18):
+
+```toml
+[theme]
+base = "light"                              # dòng 14 — luôn theme sáng, bỏ qua theme của người xem
+primaryColor = "#2563eb"                    # dòng 15 — trùng .fps-value, nút chính
+backgroundColor = "#ffffff"                 # dòng 16 — nền các card/container
+secondaryBackgroundColor = "#f0f2f6"        # dòng 17 — trùng nền trang đã ép ở CUSTOM_CSS
+textColor = "#1e293b"                       # dòng 18 — trùng .section-title/.info-value
+```
+
+`base = "light"` là dòng quan trọng nhất: nó buộc mọi widget gốc luôn vẽ
+chữ tối trên nền sáng, bất kể người xem đang dùng theme gì. Bốn dòng còn
+lại chỉ đồng bộ màu chính thức với các màu đã dùng sẵn trong CUSTOM_CSS,
+để giao diện không bị "vênh" giữa phần do Streamlit vẽ và phần do CSS vẽ.
+
+**Lưu ý khi áp dụng:** thay đổi `[theme]` trong `config.toml` **không
+tự nạp lại** khi Streamlit đang chạy (khác với sửa code Python, vốn có
+nút "Rerun" tự động) — phải dừng hẳn tiến trình (`Ctrl+C` hoặc kill) rồi
+`streamlit run app_streamlit.py` lại thì theme mới mới có hiệu lực.
+
+### 3.8.2 Sửa các màu chữ tự viết trong CUSTOM_CSS
+
+Sau khi ép theme, các đoạn `color:` viết tay trong CSS vẫn cần sửa riêng
+vì chúng không phụ thuộc theme. Chọn một màu xám đậm hơn, `#52606d`, để
+thay cho `#94a3b8` **và** `#64748b` ở mọi chỗ dùng trên nền sáng — trước
+đó hai mã màu gần giống nhau này bị dùng lẫn lộn (`#64748b` chỗ này,
+`#94a3b8` chỗ khác) dù cùng đóng vai trò "chữ phụ, mờ hơn chữ chính".
+Gộp về một màu vừa sửa lỗi, vừa làm giao diện nhất quán hơn:
+
+```
+#52606d trên #ffffff : 6,46:1   (nhãn "FPS (CURRENT)", "No data yet", "(Current)")
+#52606d trên #eff6ff : 5,93:1   (nhãn "Vùng ứng viên" trên thẻ xanh)
+#52606d trên #f8fafc : 6,17:1   (tiêu đề cột bảng kết quả)
+```
+
+Danh sách 8 chỗ đã đổi từ `#64748b`/`#94a3b8` → `#52606d` (nền sáng, cần
+**đậm** hơn):
+
+```python
+.vehicle-label  { ... color: #52606d; ... }   # dòng 100 — nhãn dưới icon xe trong thẻ đếm
+.fps-label      { ... color: #52606d; ... }   # dòng 109 — chữ "FPS (CURRENT)"
+.fps-unit       { ... color: #52606d; ... }   # dòng 111 — chữ "fps" cạnh số lớn
+.info-label     { color: #52606d; ... }       # dòng 113 — nhãn "Video Name", "Duration"...
+.results-table th { ... color: #52606d; ... } # dòng 126 — tiêu đề cột bảng kết quả
+```
+```python
+return '<div style="... color: #52606d; ...">No data yet. Run detection.</div>'
+                                                # dòng 142 — placeholder khi chưa có dữ liệu
+st.markdown("<div style='... color: #52606d;'>OR</div>", ...)
+                                                # dòng 232 — chữ "OR" giữa hai cách chọn video
+st.markdown('<p class="section-title">Detected Vehicles '
+            '<span style="color:#52606d;...">(Current)</span></p>', ...)
+                                                # dòng 348 — chú thích nhỏ cạnh tiêu đề mục
+```
+
+Hai chỗ còn lại đi **ngược hướng** — nền của chúng là màu **tối**
+(`.video-preview { background: #0f172a; }`), nên chữ phải **sáng hơn**
+thay vì đậm hơn. Đổi `#64748b` (3,75:1, fail) → `#94a3b8` (6,96:1, đạt),
+tái dùng đúng màu đã chứng minh đọc tốt trên nền tối ở `.header-subtitle`:
+
+```python
+video_placeholder.markdown('...<div style="color:#94a3b8; ...">Upload a video to start</div>...')
+                                                # dòng 313 — chữ giữa khung video khi chưa chọn video
+video_placeholder.markdown('...<div style="color:#94a3b8; ...">Ready to run detection</div>...')
+                                                # dòng 315 — chữ giữa khung video khi đã chọn nhưng chưa Run
+```
+
+Những chỗ **không đổi** vì đã đủ tương phản từ đầu: `.header-subtitle`
+(6,96:1, nền tối), `.badge-ready` xanh lá (7,04:1, nền tối), `.fps-value`
+xanh dương đậm (5,17:1, nền trắng), `.info-value`/`.section-title` gần
+đen (14,6:1), `.results-table td` (10,3:1), `.row-highlight td` (8,0:1).
+Không sửa những chỗ này để tránh đổi giao diện nhiều hơn mức cần thiết.
+
+### 3.8.3 Cách kiểm tra lại
+
+Vì lỗi gốc chỉ lộ ra khi trình duyệt người xem ở dark mode, kiểm tra bằng
+mắt trên máy mình (thường ở light mode) sẽ không phát hiện được. Dùng
+Playwright ép `color_scheme="dark"` để mô phỏng đúng tình huống lỗi:
+
+```python
+page = browser.new_page(color_scheme="dark")   # giả lập trình duyệt của người dùng đang bật dark mode
+page.goto("http://localhost:8501")
+page.wait_for_selector("text=TransDetect-Vid")  # đợi Streamlit render xong (đừng dùng networkidle —
+page.wait_for_timeout(2000)                     # Streamlit cập nhật qua WebSocket, không qua HTTP)
+page.screenshot(path="dashboard_dark.png", full_page=True)
+```
+
+Sau khi ép `base = "light"`, ảnh chụp với `color_scheme="dark"` và
+`color_scheme="light"` cho kết quả **giống hệt nhau** — đúng như mong đợi,
+vì giờ theme không còn phụ thuộc vào lựa chọn của trình duyệt nữa.
 
 ---
 
