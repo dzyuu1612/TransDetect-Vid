@@ -6,9 +6,80 @@ commit, đúng lệnh chạy và đúng file kết quả.
 
 ---
 
+## [Chưa phát hành] — Chuẩn bị dữ liệu và siết chặt kiểm tra
+
+### Thêm mới
+
+- **`prepare_evaluation_frames.py`** — trích N frame phân bố đều từ video.
+  - Dùng `np.linspace` thay vì `range(0, total, step)`: linspace xử lý được
+    phần thập phân của bước nhảy nên phủ trọn tới frame cuối, còn range có
+    thể bỏ sót đoạn cuối video khi tổng số frame không chia hết cho bước.
+  - Sinh `evaluation/frame_manifest.csv` ghi lại ảnh nào ứng với frame nào,
+    ở giây thứ mấy — để sau này truy ngược được một kết quả bất thường.
+  - Từ chối ghi đè khi thư mục đã có ảnh (trừ khi truyền `--overwrite`), vì
+    trích lại với `--count` khác sẽ tạo bộ ảnh mới không khớp nhãn đã gán.
+  - Báo lỗi và dừng nếu không đọc được một frame đã chọn, thay vì bỏ qua âm
+    thầm làm tập đánh giá ít hơn số đã ghi trong báo cáo.
+  - **Không** chạy YOLO và **không** sinh nhãn tự động.
+
+- **`evaluation/classes.txt`** — cố định 4 lớp: `car=0, motorcycle=1,
+  bus=2, truck=3`.
+
+- **Đã trích 100 frame thật** từ `duong_pho_sg(3).mp4` (1280×720, 59,94 FPS,
+  780 frame) vào `evaluation/images/`, bước nhảy 7–8 frame, phủ từ giây 0
+  đến giây 12,996.
+
+### Siết chặt `evaluate_pipelines.py`
+
+- Thêm `validate_evaluation_dataset()` kiểm tra 12 điều kiện: thư mục tồn
+  tại, ảnh đọc được, mọi ảnh có đúng một nhãn, không có nhãn thừa, mỗi dòng
+  đủ 5 trường, `class_id` thuộc {0,1,2,3}, toạ độ hữu hạn và nằm trong
+  `[0,1]`, `width`/`height` dương, box không suy biến sau khi đổi sang pixel.
+  File nhãn rỗng được chấp nhận vì frame có thể thật sự không có xe.
+- **Đổi hành vi**: ảnh thiếu nhãn trước đây chỉ *cảnh báo* rồi coi như 0
+  ground truth — nay **dừng hẳn**. Lý do: mọi box phát hiện trên ảnh thiếu
+  nhãn đều thành False Positive, chỉ vài ảnh là Precision đã sai lệch mà
+  không để lại dấu vết nào trong CSV. Sai lệch âm thầm nguy hiểm hơn lỗi ồn ào.
+- Thêm `--validate-only`: kiểm tra dataset mà không nạp model YOLO.
+- Thêm `evaluation/results/run_metadata.json`: commit Git, SHA256 của file
+  trọng số, toàn bộ ngưỡng, cấu hình Classical, thiết bị, và phiên bản
+  Python/OpenCV/NumPy/Ultralytics/Torch **đọc từ môi trường thật**, không
+  ghi cứng.
+- Thêm kiểm tra bất biến sau khi chấm: `TP + FN` phải bằng tổng ground truth,
+  và Precision/Recall/F1 phải nằm trong `[0, 1]`.
+- Bắt `ValueError`/`FileNotFoundError` ở `__main__` để in thông báo gọn thay
+  vì traceback dài, vì đây là lỗi dữ liệu của người dùng chứ không phải bug.
+
+### Sửa lỗi trong tài liệu và thông báo
+
+- **`23/23 PASS`, không phải `20/20`.** Bản CHANGELOG trước ghi sai do đếm
+  nhầm số ca kiểm thử. Nay `run_selftest()` tự đếm động nên không thể lệch lại.
+- Thông báo lỗi trong `evaluate_pipelines.py` trỏ tới một file đặc tả không
+  có trong repo → đổi thành `evaluation/README.md`.
+- Bảng kết quả định lượng là **Bảng 4.4**, không phải 4.5 (đã sửa các chỗ
+  ghi nhầm trong CHANGELOG).
+
+### Kiểm thử đợt này
+
+| Hạng mục | Kết quả |
+|---|---|
+| `python -m compileall` | OK |
+| `--selftest` | 23/23 PASS |
+| Trích 100 frame từ video thật | OK, bước nhảy 7–8, phủ toàn video |
+| Validator bắt lỗi nhãn | Bắt đúng 4/4 lỗi cố ý (thiếu trường, sai `class_id`, toạ độ ngoài `[0,1]`, `width=0`) kèm số dòng |
+| Validator chấp nhận nhãn hợp lệ | OK, kể cả file nhãn rỗng |
+| `--validate-only` | Chạy được, không nạp model |
+| Chạy đầy đủ trên 6 ảnh + nhãn giả lập | Sinh đủ 3 file kết quả, metadata đầy đủ |
+
+Dữ liệu giả lập dùng để kiểm thử đã bị xoá. `evaluation/labels/` và
+`evaluation/results/` hiện **rỗng** — không có nhãn giả hay số liệu giả nào
+lọt vào repo.
+
+---
+
 ## [Chưa phát hành] — Bổ sung quy trình đánh giá định lượng
 
-Đặc tả nguồn: `BO_SUNG_DANH_GIA_DO_CHINH_XAC_TRANDETECT_VID.md`
+Đặc tả nguồn: tài liệu yêu cầu do nhóm cung cấp (không nằm trong repo)
 Mã nguồn đối chiếu: nhánh `main`, commit `6920c6ac879c8e1c93a662a8dca2dda965c45563`
 
 ### Thêm mới
@@ -57,7 +128,7 @@ src/transdetect/pipeline.py
 
 ### Kiểm thử
 
-`python evaluate_pipelines.py --selftest` — **20/20 PASS**:
+`python evaluate_pipelines.py --selftest` — **23/23 PASS**:
 
 | Nhóm | Ca kiểm thử |
 |---|---|
@@ -83,13 +154,15 @@ File mới: `TransDetect-Vid_BaoCao_FINAL_v2.docx`
 | Bảng 4.2 | Dòng "Độ đo hiện có" nay nêu cả Precision/Recall/F1, không còn nói "chưa tính được" |
 | 4.2.2 | Viết lại: định nghĩa TP/FP/FN, quy tắc ghép một-một tại IoU ≥ 0,5, công thức Precision/Recall/F1, giải thích class-agnostic |
 | 4.2.2 (thêm) | Đoạn mới giải thích **vì sao không dùng Accuracy** (không đếm được True Negative) và **vì sao không dùng mAP để so sánh** (nhánh truyền thống không có confidence chuẩn) |
-| 4.3 | Thêm **Bảng 4.5** — bảng kết quả định lượng hai pipeline, kèm đoạn dẫn và ghi chú |
-| 4.3 | Bỏ câu "cột chất lượng để chưa đo vì chưa có ground-truth", trỏ sang Bảng 4.5 |
+| 4.3 | Thêm **Bảng 4.4** — bảng kết quả định lượng hai pipeline, kèm đoạn dẫn và ghi chú |
+| 4.3 | Bỏ câu "cột chất lượng để chưa đo vì chưa có ground-truth", trỏ sang Bảng 4.4 |
 | 5.1 | Thêm đoạn ghi nhận đã bổ sung quy trình đánh giá có ground truth, tách khỏi luồng demo nên tái lập được |
 | 5.3 | "xây dựng tập kiểm thử có ground truth" → "mở rộng tập hiện có", thêm hướng class-aware/mAP **chỉ cho YOLO11** |
 
-Bảng 4.3 (FPS) và Bảng 4.4 (kỳ vọng định tính) giữ nguyên. Mọi hình ảnh,
-trang bìa, mục lục, font và bố cục không liên quan đều không bị đụng tới.
+Bảng 4.3 (FPS) giữ nguyên nội dung. Bảng kỳ vọng định tính giữ nguyên nội
+dung nhưng đổi số hiệu từ 4.4 thành 4.5 (xem mục sửa bố cục bên dưới).
+Mọi hình ảnh, trang bìa, mục lục, font và bố cục không liên quan đều không
+bị đụng tới.
 
 ### Placeholder chưa thể điền
 
@@ -106,7 +179,7 @@ không bịa số liệu, các ô sau vẫn để dạng placeholder trong DOCX:
 | `[TÊN CÔNG CỤ GÁN NHÃN]` | LabelImg / CVAT / Roboflow… | Do nhóm điền |
 
 Quy trình điền: gán nhãn → chạy `evaluate_pipelines.py` → mở
-`summary_metrics.csv` → chép số thật vào Bảng 4.5 → viết nhận xét dựa trên
+`summary_metrics.csv` → chép số thật vào Bảng 4.4 → viết nhận xét dựa trên
 số thật. **Không điền số ước lượng.**
 
 ### Sửa bố cục phát hiện qua bản render
