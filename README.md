@@ -105,25 +105,35 @@ Bỏ trống `--conf/--iou/--max-det` thì giá trị lấy từ
 
 ## Quy trình đánh giá định lượng
 
-**Chỉ nhánh YOLO11 được đánh giá định lượng.** YOLO11 sinh bounding box kèm
-nhãn lớp và confidence nên tính được Precision/Recall/F1 có phân biệt lớp và
-dựng được đường Precision-Recall để tính AP/mAP. Nhánh truyền thống chỉ sinh
-vùng ứng viên từ threshold/Sobel/contour: không có lớp và không có confidence
-chuẩn để xếp hạng prediction, nên **không báo cáo mAP cho nhánh này**. Ép nó có
-mAP bằng một confidence giả (diện tích contour, hằng số 1,0…) sẽ ra con số chạy
-được nhưng sai ý nghĩa.
+Đánh giá định lượng **chính** của đề tài được thực hiện cho YOLO11 theo
+class-aware bằng Precision, Recall, F1, AP50 và mAP50–95. Ngoài ra, repo cung
+cấp một phép so sánh **định vị class-agnostic tùy chọn** giữa Classical và
+YOLO11 bằng Precision, Recall và F1 trên cùng ground truth. Phép so sánh này
+không đánh giá khả năng phân loại và không tính mAP cho Classical.
 
-Nhánh truyền thống vẫn giữ để minh hoạ chuỗi phép biến đổi và **đo FPS** —
-tức là đánh giá tốc độ và tính giải thích được, không phải độ chính xác.
+| Phép đánh giá | Đối tượng được chấm | Xét lớp? | Chỉ số | Script |
+|---|---|:---:|---|---|
+| Đánh giá chính | YOLO11 | Có | P, R, F1, AP50, mAP50–95 | `evaluate_yolo.py` |
+| So sánh định vị | Classical và YOLO11 | Không | P, R, F1 tại IoU ≥ 0,5 | `evaluate_pipelines.py` |
 
-> Không viết "YOLO chính xác hơn pipeline truyền thống X%" khi pipeline truyền
-> thống không được chấm trên cùng một chuẩn.
+Không tính mAP cho pipeline truyền thống vì nó chỉ sinh vùng ứng viên từ
+threshold/Sobel/contour, không có confidence chuẩn để xếp hạng prediction và
+dựng đường Precision-Recall. Ép nó có mAP bằng một confidence giả (diện tích
+contour, hằng số 1,0…) sẽ ra con số chạy được nhưng sai ý nghĩa.
+
+Phép so sánh định vị chỉ trả lời: *phương pháp có đặt một vùng dự đoán khớp với
+vị trí phương tiện thật hay không?* Nó **không** trả lời: *phương pháp có phân
+loại đúng loại phương tiện hay không?*
+
+> Không viết "YOLO chính xác hơn pipeline truyền thống X%" nếu đem mAP của
+> YOLO11 đặt cạnh một mAP Classical không có thật.
 
 ### Bước 1 — Kiểm thử code (không cần dữ liệu)
 
 ```bash
-python -m compileall main.py app_streamlit.py evaluate_yolo.py src/transdetect
-python evaluate_yolo.py --selftest
+python -m compileall main.py app_streamlit.py evaluate_yolo.py evaluate_pipelines.py src/transdetect
+python evaluate_yolo.py --selftest        # mong đợi 60/60 PASS
+python evaluate_pipelines.py --selftest   # mong đợi 23/23 PASS
 ```
 
 Kết quả mong đợi: `60/60 KIỂM THỬ ĐỀU PASS`.
@@ -159,27 +169,54 @@ Kiểm tra thiếu/thừa nhãn, sai `class_id`, toạ độ ngoài `[0,1]`, box
 mà không nạp model. Script **dừng hẳn và không sinh file kết quả nào** nếu
 dataset chưa hợp lệ — sai lệch âm thầm nguy hiểm hơn nhiều so với việc báo lỗi.
 
-### Bước 5 — Chạy đánh giá
+### Bước 5 — Chạy đánh giá chính (YOLO11, class-aware)
 
 ```bash
 python evaluate_yolo.py \
   --images evaluation/images --labels evaluation/labels \
   --model yolo11n.pt --imgsz 640 --conf 0.25 --predict-conf 0.001 \
-  --nms-iou 0.45 --match-iou 0.50 --output evaluation/results_yolo
+  --nms-iou 0.45 --match-iou 0.50 --max-det 300 \
+  --output evaluation/results_yolo
 ```
 
 Kết quả tại `evaluation/results_yolo/`:
 
-| File | Nội dung |
+| File | Dùng để làm gì |
 |---|---|
-| `summary_metrics.csv` | Một dòng tổng: TP/FP/FN, P/R/F1, mAP50, mAP50-95 |
-| `per_class_metrics.csv` | Bốn lớp: GT, TP/FP/FN, P/R/F1, AP50, AP50-95 |
-| `per_frame_metrics.csv` | Từng ảnh: GT, số prediction, TP/FP/FN |
-| `predictions.csv` | Mọi prediction kèm confidence và toạ độ |
-| `run_metadata.json` | Commit, SHA256 model, mọi ngưỡng, phiên bản thư viện |
+| `summary_metrics.csv` | Lấy số tổng đưa vào bảng chính trong DOCX/PPT |
+| `per_class_metrics.csv` | Phân tích Car, Motorcycle, Bus và Truck |
+| `per_frame_metrics.csv` | Tìm frame có nhiều FP hoặc FN |
+| `predictions.csv` | Kiểm tra prediction cụ thể mà không chạy lại model |
+| `run_metadata.json` | Chứng minh model, commit và ngưỡng đã dùng |
 
 `run_metadata.json` là bằng chứng để tái lập: nếu sau này thư viện đổi mặc
 định, file này cho biết kết quả cũ sinh ra dưới cấu hình nào.
+
+### Bước 6 — So sánh định vị hai pipeline (tùy chọn)
+
+Dùng **đúng cùng** tập ảnh và ground truth:
+
+```bash
+python evaluate_pipelines.py \
+  --images evaluation/images --labels evaluation/labels \
+  --model yolo11n.pt --conf 0.25 --iou-match 0.50 \
+  --output evaluation/results_compare
+```
+
+Sinh `summary_metrics.csv`, `per_frame_metrics.csv` và `run_metadata.json`
+trong `evaluation/results_compare/`. Phép đánh giá này gộp
+Car/Motorcycle/Bus/Truck thành một lớp `vehicle`, nên chỉ so sánh khả năng
+**định vị** — cách so sánh công bằng nhất khi Classical không phân loại lớp.
+
+### Kiểm chứng trước khi đưa vào báo cáo
+
+Ở cả kết quả tổng và từng lớp phải đúng: `TP + FN = tổng số ground-truth box`,
+và mọi metric nằm trong `[0, 1]` (ghi phần trăm thì `0.8234 = 82,34%`).
+
+Từ `per_frame_metrics.csv`, mở lại vài frame để kiểm tra bằng mắt: 2 frame ít
+FP/FN, 2 frame nhiều FN, 2 frame nhiều FP và ít nhất một trường hợp YOLO11 sai
+lớp. Nếu phát hiện nhãn sai thì **sửa nhãn rồi chạy lại toàn bộ evaluator** —
+không sửa detector dựa trên tập test.
 
 ### Các chỉ số và ngưỡng
 
