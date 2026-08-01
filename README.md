@@ -35,21 +35,29 @@ Có cả giao diện dòng lệnh (CLI) và dashboard web (Streamlit).
 |---|---|
 | `main.py` | CLI — gọi `src/transdetect/pipeline.py` |
 | `app_streamlit.py` | Dashboard web, dùng trực tiếp các module lõi |
-| `train_yolo.py` | Huấn luyện / đánh giá YOLO11 trên dataset tuỳ chỉnh |
+| `train_yolo.py` | **Tuỳ chọn** — fine-tune / kiểm định YOLO11 trên dataset riêng |
 
 ### Đánh giá định lượng
 
 | File | Vai trò |
 |---|---|
 | `prepare_evaluation_frames.py` | Trích N frame phân bố đều từ video |
-| `evaluate_pipelines.py` | Chấm điểm Precision/Recall/F1 cho cả hai pipeline |
+| `evaluate_yolo.py` | **Chỉ số chính** — chấm YOLO11 class-aware: P/R/F1, AP50, mAP50-95 |
+| `evaluate_pipelines.py` | Tuỳ chọn — so sánh khả năng *định vị* class-agnostic của hai pipeline |
 | `evaluation/` | Ảnh, nhãn ground truth và kết quả (xem `evaluation/README.md`) |
 
-### File cũ, không dùng cho báo cáo
+### Dữ liệu và tài liệu kèm theo
 
-`app.py`, `yolo_detector.py` (ở thư mục gốc) và `run_demo.py` là bản trước
-khi refactor, giữ lại để tham khảo. Chúng **không** được `main.py` hay
-`app_streamlit.py` import, và cài đặt khác với `src/transdetect/`.
+| Thư mục | Vai trò |
+|---|---|
+| `datasets/` | Nguồn và giấy phép của dataset Roboflow (chỉ README + `data.yaml`, không commit ảnh) |
+| `notebooks/` | Notebook demo chạy trên Google Colab |
+| `evaluation/` | Tập đánh giá và kết quả — xem `evaluation/README.md` |
+
+> Các bản script trước khi refactor (`app.py`, `yolo_detector.py` ở thư mục
+> gốc, `run_demo.py`) đã được gỡ bỏ: chúng trùng chức năng với
+> `src/transdetect/` nhưng cài đặt khác, và không được `main.py` hay
+> `app_streamlit.py` import. Cần xem lại thì tra trong lịch sử Git.
 
 ---
 
@@ -97,20 +105,28 @@ Bỏ trống `--conf/--iou/--max-det` thì giá trị lấy từ
 
 ## Quy trình đánh giá định lượng
 
-So sánh hai pipeline bằng Precision, Recall và F1 tại ngưỡng IoU ≥ 0,5, đánh
-giá **class-agnostic** (gộp Car/Motorcycle/Bus/Truck thành `vehicle`). Phải
-gộp lớp vì pipeline truyền thống chỉ sinh vùng ứng viên, không phân loại
-được loại xe — so sánh có phân biệt lớp sẽ đo nhầm khả năng *phân loại* thay
-vì khả năng *định vị*.
+**Chỉ nhánh YOLO11 được đánh giá định lượng.** YOLO11 sinh bounding box kèm
+nhãn lớp và confidence nên tính được Precision/Recall/F1 có phân biệt lớp và
+dựng được đường Precision-Recall để tính AP/mAP. Nhánh truyền thống chỉ sinh
+vùng ứng viên từ threshold/Sobel/contour: không có lớp và không có confidence
+chuẩn để xếp hạng prediction, nên **không báo cáo mAP cho nhánh này**. Ép nó có
+mAP bằng một confidence giả (diện tích contour, hằng số 1,0…) sẽ ra con số chạy
+được nhưng sai ý nghĩa.
+
+Nhánh truyền thống vẫn giữ để minh hoạ chuỗi phép biến đổi và **đo FPS** —
+tức là đánh giá tốc độ và tính giải thích được, không phải độ chính xác.
+
+> Không viết "YOLO chính xác hơn pipeline truyền thống X%" khi pipeline truyền
+> thống không được chấm trên cùng một chuẩn.
 
 ### Bước 1 — Kiểm thử code (không cần dữ liệu)
 
 ```bash
-python -m compileall .
-python evaluate_pipelines.py --selftest
+python -m compileall main.py app_streamlit.py evaluate_yolo.py src/transdetect
+python evaluate_yolo.py --selftest
 ```
 
-Kết quả mong đợi: `23/23 KIỂM THỬ ĐỀU PASS`.
+Kết quả mong đợi: `60/60 KIỂM THỬ ĐỀU PASS`.
 
 ### Bước 2 — Trích frame phân bố đều
 
@@ -125,37 +141,68 @@ Sinh ảnh vào `evaluation/images/` và ghi `evaluation/frame_manifest.csv`
 
 Dùng LabelImg, CVAT hoặc Roboflow Annotate. Xuất định dạng YOLO vào
 `evaluation/labels/`, mỗi ảnh một file `.txt` cùng tên (kể cả file rỗng nếu
-frame không có phương tiện). Chỉ gán 4 lớp trong `evaluation/classes.txt`.
+frame không có phương tiện). Chỉ gán 4 lớp trong `evaluation/classes.txt`, và
+`class_id` phải đúng vì phép đánh giá này là class-aware.
 
-**Không dùng dự đoán của YOLO làm ground truth** — nếu lấy output của model
-làm chuẩn rồi chấm điểm chính model đó, kết quả thành vòng lặp tự khẳng định
-và vô nghĩa.
+**Không dùng dự đoán của YOLO làm ground truth** — nếu lấy output của model làm
+chuẩn rồi chấm điểm chính model đó, kết quả thành vòng lặp tự khẳng định, luôn
+ra gần 1,00 và vô nghĩa. Được phép pre-label bằng YOLO cho nhanh, nhưng người
+gán nhãn phải xem và sửa toàn bộ box, lớp, box thiếu và box thừa.
 
 ### Bước 4 — Kiểm tra nhãn
 
 ```bash
-python evaluate_pipelines.py --validate-only
+python evaluate_yolo.py --validate-only
 ```
 
-Kiểm tra 12 điều kiện (thiếu nhãn, sai `class_id`, toạ độ ngoài `[0,1]`,
-box suy biến…) mà không nạp model. Chỉ đi tiếp khi không còn lỗi.
+Kiểm tra thiếu/thừa nhãn, sai `class_id`, toạ độ ngoài `[0,1]`, box suy biến…
+mà không nạp model. Script **dừng hẳn và không sinh file kết quả nào** nếu
+dataset chưa hợp lệ — sai lệch âm thầm nguy hiểm hơn nhiều so với việc báo lỗi.
 
 ### Bước 5 — Chạy đánh giá
 
 ```bash
-python evaluate_pipelines.py
+python evaluate_yolo.py \
+  --images evaluation/images --labels evaluation/labels \
+  --model yolo11n.pt --imgsz 640 --conf 0.25 --predict-conf 0.001 \
+  --nms-iou 0.45 --match-iou 0.50 --output evaluation/results_yolo
 ```
 
-Kết quả tại `evaluation/results/`:
+Kết quả tại `evaluation/results_yolo/`:
 
 | File | Nội dung |
 |---|---|
-| `summary_metrics.csv` | TP/FP/FN, Precision, Recall, F1 của từng pipeline |
-| `per_frame_metrics.csv` | Số liệu chi tiết theo từng khung hình |
-| `run_metadata.json` | Commit, SHA256 model, mọi tham số, phiên bản thư viện |
+| `summary_metrics.csv` | Một dòng tổng: TP/FP/FN, P/R/F1, mAP50, mAP50-95 |
+| `per_class_metrics.csv` | Bốn lớp: GT, TP/FP/FN, P/R/F1, AP50, AP50-95 |
+| `per_frame_metrics.csv` | Từng ảnh: GT, số prediction, TP/FP/FN |
+| `predictions.csv` | Mọi prediction kèm confidence và toạ độ |
+| `run_metadata.json` | Commit, SHA256 model, mọi ngưỡng, phiên bản thư viện |
 
 `run_metadata.json` là bằng chứng để tái lập: nếu sau này thư viện đổi mặc
 định, file này cho biết kết quả cũ sinh ra dưới cấu hình nào.
+
+### Các chỉ số và ngưỡng
+
+| Chỉ số | Ý nghĩa |
+|---|---|
+| Precision | Trong các box YOLO dự đoán, tỉ lệ box đúng |
+| Recall | Trong các xe thật, tỉ lệ được YOLO tìm thấy |
+| F1 | Cân bằng Precision/Recall tại `conf=0.25` |
+| mAP@0.5 | AP trung bình tại IoU 0,50 |
+| **mAP@0.5:0.95** | AP trung bình trên IoU 0,50→0,95 — **chỉ số chính** |
+
+Confidence trung bình của box **không phải** độ chính xác; chỉ dùng để mô tả.
+
+Hai ngưỡng IoU có vai trò khác nhau, không được nhầm: **NMS IoU = 0,45** dùng
+để loại prediction trùng nhau trong lúc suy luận, còn **matching IoU = 0,50**
+dùng để quyết định prediction có khớp ground truth hay không.
+
+Suy luận chạy **một lượt duy nhất** ở `conf=0.001` rồi lọc lại ở `0.25`: AP cần
+cả prediction điểm thấp ở phần đuôi để dựng trọn đường Precision-Recall, nếu chỉ
+chạy ở 0,25 thì đường PR bị cắt cụt và AP thấp hơn giá trị thật.
+
+`imgsz=640` là kích thước model nhận **sau letterbox**, không phải độ phân giải
+video nguồn (1280×720).
 
 ---
 

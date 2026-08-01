@@ -6,6 +6,72 @@ commit, đúng lệnh chạy và đúng file kết quả.
 
 ---
 
+## [Chưa phát hành] — Đánh giá class-aware cho YOLO11 và dọn repo
+
+### Thêm mới
+
+- **`evaluate_yolo.py`** — chấm điểm định lượng RIÊNG cho nhánh YOLO11.
+  - **Class-aware**: một prediction chỉ tính TP khi trùng cả vị trí lẫn lớp.
+    Khác `evaluate_pipelines.py` vốn bỏ `class_id` để chấm class-agnostic.
+  - Ghép lớp qua **TÊN** đã chuẩn hoá, không qua ID. Đây là điểm dễ sai nhất:
+    `yolo11n.pt` pre-train trên COCO dùng ID nội bộ (car=2, motorcycle=3,
+    bus=5, truck=7), khác hoàn toàn ID của tập nhãn (0/1/2/3). So trực tiếp
+    hai bộ ID thì mọi prediction đều lệch lớp — script vẫn ra số nhưng vô nghĩa.
+  - Thêm **AP@0.50** và **AP@0.50:0.95** theo từng lớp, nội suy 101 điểm
+    recall, ghép theo confidence giảm dần. Suy luận **một lượt duy nhất** ở
+    `conf=0.001` rồi lọc lại ở `0.25` cho nhóm P/R/F1: AP cần cả prediction
+    điểm thấp ở phần đuôi, chạy thẳng ở 0,25 sẽ cắt cụt đường PR và làm AP
+    thấp hơn giá trị thật.
+  - Lớp không có ground truth trả về `N/A`, **không** phải 0.0 — 0.0 sẽ bị
+    tính vào trung bình và kéo mAP xuống sai lệch.
+  - Lớp ngoài bốn lớp đánh giá (`person`, `bicycle`…) bị bỏ qua chứ không
+    tính thành FP, vì tập nhãn không gán chúng.
+  - Tách bạch **NMS IoU = 0,45** (loại prediction trùng lúc suy luận) và
+    **matching IoU = 0,50** (quyết định khớp ground truth) thành hai tham số.
+  - Sinh 5 file: `summary_metrics.csv`, `per_class_metrics.csv`,
+    `per_frame_metrics.csv`, `predictions.csv`, `run_metadata.json`.
+  - `--selftest`: **60/60 PASS**, không cần ảnh/nhãn/model.
+  - `--validate-only`: dừng hẳn và **không sinh file nào** nếu dataset sai.
+
+### Thay đổi
+
+- **`src/transdetect/yolo_detector.py`** — thêm tham số `img_size=640` ở cuối
+  `detect_frame()` và truyền vào `model.predict(imgsz=...)`. Cả 4 nơi đang gọi
+  đều truyền positional tới `max_det`, và 640 đúng bằng giá trị Ultralytics vẫn
+  dùng ngầm trước đây, nên hành vi demo không đổi.
+
+- **`train_yolo.py`** — chuyển sang CLI có hai lệnh con `train` / `val`.
+  Bản cũ liệt kê sẵn bốn dataset và huấn luyện lần lượt 50 epoch **ngay khi
+  chạy file**, nên ai lỡ mở là mất nhiều giờ GPU ngoài ý muốn; vòng lặp còn
+  bọc `except Exception` rồi chạy tiếp dataset kế, khiến lỗi đường dẫn trôi
+  qua không ai biết. Nay in đường dẫn kết quả THẬT do Ultralytics trả về
+  (`results.save_dir`) thay vì ghép cứng `runs/detect/<name>` — Ultralytics tự
+  đổi sang `<name>2`, `<name>3`… khi thư mục đã tồn tại.
+
+### Sửa lỗi
+
+- **`prepare_evaluation_frames.py`** — script dừng bằng `UnicodeEncodeError`
+  ở lệnh `print` cuối trên console Windows (cp1252 không mã hoá được tiếng
+  Việt có dấu), *sau khi* đã trích xong frame. Ép `stdout`/`stderr` về UTF-8;
+  áp dụng tương tự cho `evaluate_yolo.py`.
+
+### Gỡ bỏ
+
+- `app.py`, `yolo_detector.py` (thư mục gốc), `run_demo.py` — bản trước khi
+  refactor, trùng chức năng với `src/transdetect/` nhưng cài đặt khác và không
+  được `main.py` hay `app_streamlit.py` import.
+- `CODE_WALKTHROUGH.md`, `DOCX_REVISIONS_v14.md`, `UI_REQUIREMENTS.md`,
+  `HUONG_DAN_CAI_DAT.md`, `file_word_BaoCao/` — tài liệu và bản báo cáo đi kèm,
+  không thuộc mã nguồn hay demo. Tra lại được trong lịch sử Git.
+
+### Trạng thái
+
+Chưa có số liệu nào để đưa vào báo cáo: `evaluation/labels/` vẫn rỗng. Toàn bộ
+mã đánh giá đã xong và đã kiểm thử, chỉ còn thiếu phần nhãn do **con người**
+gán — không được dùng output của YOLO làm ground truth.
+
+---
+
 ## [Chưa phát hành] — Chuẩn bị dữ liệu và siết chặt kiểm tra
 
 ### Thêm mới

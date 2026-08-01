@@ -28,6 +28,13 @@ import cv2
 import numpy as np
 
 
+# Console Windows mặc định dùng cp1252, không mã hoá được tiếng Việt có dấu nên
+# một lệnh print bình thường cũng làm script dừng giữa chừng bằng
+# UnicodeEncodeError — dù frame đã trích xong. Ép stdout/stderr về UTF-8.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+
 def read_video_metadata(capture, video_path):
     """Đọc và kiểm tra metadata của video.
 
