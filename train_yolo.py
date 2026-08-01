@@ -4,6 +4,9 @@ train_yolo.py
 Huan luyen YOLO11 - giai thich CHI TIET TUNG DONG.
 """
 
+import os
+from pathlib import Path
+
 from ultralytics import YOLO   # thu vien chinh thuc cua YOLO11, chua san model + ham train/val/predict
 
 
@@ -41,11 +44,12 @@ def evaluate(model_path: str, data_yaml_path: str):
 
 
 if __name__ == "__main__":
+    DATASET_ROOT = Path(os.environ.get("TRANSDETECT_DATASETS", "datasets"))
     datasets_to_train = [
-        (r"D:\1ComputerVisionProject1\Vietnam-Traffic-Sign.v1i.yolov11\data.yaml", "traffic_sign_yolo11n"),
-        (r"D:\1ComputerVisionProject1\Car Motorcycle Truck.v1i.yolov11\data.yaml", "car_motorcycle_truck_yolo11n"),
-        (r"D:\1ComputerVisionProject1\Vietnam Container truck.v1i.yolov11\data.yaml", "vietnam_container_truck_yolo11n"),
-        (r"D:\1ComputerVisionProject1\Vehicle Detection.v7i.yolov11\data.yaml", "vehicle_detection_yolo11n")
+        (DATASET_ROOT / "Vietnam-Traffic-Sign.v1i.yolov11" / "data.yaml", "traffic_sign_yolo11n"),
+        (DATASET_ROOT / "Car Motorcycle Truck.v1i.yolov11" / "data.yaml", "car_motorcycle_truck_yolo11n"),
+        (DATASET_ROOT / "Vietnam Container truck.v1i.yolov11" / "data.yaml", "vietnam_container_truck_yolo11n"),
+        (DATASET_ROOT / "Vehicle Detection.v7i.yolov11" / "data.yaml", "vehicle_detection_yolo11n"),
     ]
 
     for data_yaml, run_name in datasets_to_train:

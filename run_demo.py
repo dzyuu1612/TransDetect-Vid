@@ -1,3 +1,5 @@
+import os
+
 import cv2
 import yolo_detector
 
@@ -5,7 +7,10 @@ import yolo_detector
 model = yolo_detector.load_model(r"runs\detect\motorbike_yolo11n\weights\best.pt")
 
 # Read a test image
-image_path = r"D:\1ComputerVisionProject1\motorbike.yolov11\valid\images\172-19-19-150_03_20230227105910150_jpg.rf.JIzzXC2w7FHelpgTDAG1.jpg"
+image_path = os.environ.get(
+    "TRANSDETECT_DEMO_IMAGE",
+    "datasets/Vehicle Detection.v7i.yolov11/valid/images/sample.jpg",
+)
 frame = cv2.imread(image_path)
 
 # Run detection
