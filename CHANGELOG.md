@@ -6,6 +6,72 @@ commit, đúng lệnh chạy và đúng file kết quả.
 
 ---
 
+## [2026-08-02] — Đánh giá theo ROI và hoàn thiện repo
+
+### Thêm mới
+
+- **`--roi-y-min`** cho cả `evaluate_yolo.py` và `evaluate_pipelines.py` — giới
+  hạn phạm vi đánh giá theo TỈ LỆ chiều cao ảnh, lọc theo TÂM bounding box.
+  Xét tâm chứ không xét mép vì xe vắt qua biên vẫn phải được phân loại dứt
+  khoát, và ground truth với prediction hiếm khi trùng mép nhau.
+  - Lọc đặt trong `predict_all_images` — sớm nhất trong luồng dữ liệu — nên
+    P/R/F1, AP50, mAP50-95, per-frame và per-class đều cùng một phạm vi. Nếu chỉ
+    lọc ở `conf=0.25` thì mAP vẫn là full-frame và hai nhóm chỉ số không so sánh
+    được với nhau.
+  - Số GT trong CSV đếm từ tập ĐÃ lọc, không lấy từ `validate_dataset` (vốn luôn
+    là full-frame), nếu không đẳng thức `TP + FN = GT` sẽ vỡ.
+  - Mặc định `None`: regression đã xác nhận 4 file CSV trùng khít từng byte với
+    kết quả full-frame trước đó.
+
+- **`tools/visualize_roi_ground_truth.py`** — vẽ đường biên ROI làm bằng chứng
+  cho phạm vi công bố. Box ngoài ROI vẽ xám mảnh chứ không ẩn, để không gây hiểu
+  nhầm là tập nhãn vốn không có chúng.
+
+- **`tools/import_cvat_labels.py`** — nhập nhãn CVAT có remap class ID theo
+  `data.yaml` của chính file export. CVAT dùng `0=motorcycle, 1=car` còn
+  evaluator dùng `0=car, 1=motorcycle`; chép thẳng sẽ biến mọi ô tô thành xe máy
+  mà validator không bắt được vì cả hai ID đều hợp lệ.
+
+- **`evaluation/ANNOTATION_AND_ROI_LIMITATIONS.md`** — ghi lại giới hạn khoa học.
+
+### Dữ liệu
+
+- Nhập 100 file nhãn từ CVAT (3.717 box full-frame; 904 box trong ROI).
+- Audit phát hiện **99,5% box giữ nguyên toạ độ pre-label do YOLO11 sinh ra**,
+  và 99,6% GT box có IoU ≥ 0,999 với một prediction của cùng mô hình. Đây là
+  nguyên nhân `mAP50 = mAP50-95 = 0,9950`: mọi cặp khớp có IoU ≈ 1,0 nên quét
+  ngưỡng 0,50→0,95 không đổi gì. Precision và mAP vì thế lạc quan.
+
+### Kết quả (có cảnh báo assisted annotation)
+
+Trong ROI `center_y/H >= 0,60`, YOLO11n tại `imgsz=640`, `conf=0,25`,
+matching IoU `0,50`: TP=696, FP=0, FN=208 → Precision 100,00%, Recall 76,99%,
+**F1 87,00%**. Classical cùng ROI (class-agnostic): F1 1,01%.
+Bus và Truck có 0 GT trong ROI nên ghi `N/A` và bị loại khỏi mAP.
+
+### Sửa lỗi
+
+- `tools/visualize_roi_ground_truth.py` ban đầu đếm 896 box trong ROI trong khi
+  evaluator đếm 904. Nguyên nhân: preview làm tròn toạ độ về `int` để vẽ, dịch
+  tâm box nửa pixel và đẩy 8 box sát biên sang phía bên kia. Đã đổi sang đếm
+  trên toạ độ chuẩn hoá gốc; hai bên giờ khớp chính xác.
+
+### Dọn dẹp
+
+- Khôi phục 11 file metadata/giấy phép trong `datasets/` — đây là nguồn dữ liệu
+  và điều khoản sử dụng, cần cho tái lập, không phải rác.
+- Đổi tên kết quả full-frame cũ thành
+  `evaluation/not_for_report_results_yolo_fullframe/` và ignore, để không nhầm
+  với kết quả ROI chính thức.
+- `.gitignore` bổ sung: ZIP CVAT, thư mục giải nén, `labels_candidate/`,
+  các thư mục preview và `not_for_report_*/`.
+
+### Self-test
+
+`evaluate_yolo.py` 60/60 → **74/74**; `evaluate_pipelines.py` 23/23 → **30/30**.
+
+---
+
 ## [Chưa phát hành] — Đánh giá class-aware cho YOLO11 và dọn repo
 
 ### Thêm mới

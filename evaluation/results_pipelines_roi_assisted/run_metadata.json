@@ -1,0 +1,39 @@
+{
+  "git_commit": "34b57bba31596593772c69453fe8fd59f48140f4",
+  "timestamp": "2026-08-02T03:54:06.277905+00:00",
+  "evaluation_mode": "class-agnostic",
+  "evaluation_scope": "vertical_roi_by_box_center",
+  "roi_y_min": 0.6,
+  "roi_definition": "box center_y / image_height >= 0.6",
+  "annotation_source": "YOLO11-assisted, human-reviewed reference annotations",
+  "annotation_independence": false,
+  "number_of_images": 100,
+  "number_of_ground_truth_boxes": 3717,
+  "boxes_per_class": {
+    "car": 1116,
+    "motorcycle": 2258,
+    "bus": 81,
+    "truck": 262
+  },
+  "number_of_empty_label_files": 0,
+  "model_path": "yolo11n.pt",
+  "model_sha256": "0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1",
+  "yolo_conf_threshold": 0.25,
+  "yolo_nms_iou_threshold": 0.45,
+  "matching_iou_threshold": 0.5,
+  "max_det": 300,
+  "classical_config": {
+    "median_kernel_size": 5,
+    "min_contour_area": 500,
+    "max_contour_area": 150000,
+    "max_aspect_ratio": 4.0,
+    "sobel_edge_threshold": 40
+  },
+  "device": "cpu",
+  "python_version": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "opencv_version": "4.13.0",
+  "numpy_version": "2.4.3",
+  "ultralytics_version": "8.4.75",
+  "torch_version": "2.12.1+cpu"
+}

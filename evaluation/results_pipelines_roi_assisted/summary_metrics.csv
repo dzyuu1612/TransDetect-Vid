@@ -1,0 +1,3 @@
+﻿method,number_of_images,number_of_ground_truth_boxes,tp,fp,fn,precision,recall,f1,iou_threshold
+Classical,100,904,8,665,896,0.0119,0.0088,0.0101,0.5
+YOLO11,100,904,696,0,208,1.0,0.7699,0.87,0.5

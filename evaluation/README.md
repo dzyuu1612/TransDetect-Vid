@@ -7,15 +7,57 @@ riêng cho nhánh YOLO11 bằng Precision / Recall / F1, AP@0.50 và mAP@0.50:0.
 
 | Hạng mục | Trạng thái |
 |---|---|
-| `images/` | **100 frame đã trích** từ `duong_pho_sg(3).mp4` (1280×720; 59,94 FPS; 780 frame) |
+| `images/` | **100 frame** trích từ `duong_pho_sg(3).mp4` (1280×720; 59,94 FPS; 780 frame) |
 | `frame_manifest.csv` | Đã sinh — ghi frame gốc và mốc thời gian của từng ảnh |
-| `labels/` | **CHƯA CÓ — đây là việc phải làm bằng tay** |
-| `results_yolo/` | Chưa có, vì chưa có nhãn |
+| `labels/` | **100 file nhãn**, tổng **3.717 box** — đã qua validator |
+| `results_yolo_roi_assisted/` | Kết quả chính thức (ROI `y >= 0,60H`) |
+| `results_pipelines_roi_assisted/` | So sánh định vị class-agnostic, cùng ROI |
 
-**Chưa có số liệu nào để đưa vào báo cáo.** Các ô trong Chương 4 vẫn phải để
-placeholder cho tới khi bước gán nhãn bên dưới hoàn tất. Toàn bộ mã đánh giá đã
-xong và đã kiểm thử (`python evaluate_yolo.py --selftest` → 60/60 PASS), nên chỉ
-còn thiếu đúng phần nhãn do con người gán.
+Self-test: `evaluate_yolo.py` **74/74 PASS**, `evaluate_pipelines.py` **30/30 PASS**.
+
+### Phân bố ground truth
+
+| | Full-frame | Trong ROI (`center_y/H >= 0,60`) | Ngoài ROI |
+|---|---:|---:|---:|
+| Tổng | 3.717 | **904 (24,3%)** | 2.813 |
+| car | 1.116 | 54 | 1.062 |
+| motorcycle | 2.258 | 850 | 1.408 |
+| bus | 81 | **0** | 81 |
+| truck | 262 | **0** | 262 |
+
+### Kết quả trong ROI
+
+| Model | GT | TP | FP | FN | Precision | Recall | F1 | mAP50 (*) | mAP50-95 (*) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| YOLO11n | 904 | 696 | 0 | 208 | 100,00% | 76,99% | **87,00%** | 99,50% | 99,50% |
+
+| Pipeline | TP | FP | FN | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|---:|---:|
+| Truyền thống | 8 | 665 | 896 | 1,19% | 0,88% | 1,01% |
+| YOLO11 | 696 | 0 | 208 | 100,00% | 76,99% | 87,00% |
+
+> **(*)** Nhãn ở đây **không phải ground truth độc lập**. Chúng được khởi tạo
+> bằng chính `yolo11n.pt` ở `conf=0.10` rồi chỉnh trong CVAT; 99,5% box giữ
+> nguyên toạ độ pre-label. Precision và mAP vì thế lạc quan. Đọc
+> [`ANNOTATION_AND_ROI_LIMITATIONS.md`](ANNOTATION_AND_ROI_LIMITATIONS.md)
+> trước khi trích bất kỳ số nào.
+
+## Phạm vi đánh giá: ROI dọc
+
+Chỉ phương tiện có **tâm bounding box** nằm trong 40% phía dưới khung hình mới
+tham gia tính điểm:
+
+```text
+center_y / image_height >= 0.60      →   y >= 432px với ảnh 1280×720
+```
+
+Box có tâm **đúng tại biên** được tính là nằm trong ROI. Quy tắc áp dụng giống
+hệt cho ground truth, prediction YOLO ở **mọi confidence** (kể cả khi thu ở
+`conf=0.001` để dựng đường Precision-Recall) và box ứng viên của Classical. Phép
+lọc đặt **trước** matching TP/FP/FN. Ảnh nguồn không bị crop hay resize.
+
+Lý do: nền xa của cảnh này có hàng chục phương tiện chỉ vài pixel, chồng lấp dày
+đặc, không gán nhãn nhất quán được.
 
 ## Cấu trúc
 
@@ -158,15 +200,28 @@ sang pixel. Phải sửa hết lỗi trước khi sang bước sau.
 
 ### Bước 4 — Chạy đánh giá
 
+Lệnh đã thực sự chạy để sinh số liệu ở đầu tài liệu:
+
 ```bash
 python evaluate_yolo.py \
   --images evaluation/images \
   --labels evaluation/labels \
   --model yolo11n.pt \
   --imgsz 640 --conf 0.25 --predict-conf 0.001 \
-  --nms-iou 0.45 --match-iou 0.50 \
-  --output evaluation/results_yolo
+  --nms-iou 0.45 --match-iou 0.50 --max-det 300 --roi-y-min 0.60 \
+  --output evaluation/results_yolo_roi_assisted
+
+python evaluate_pipelines.py \
+  --images evaluation/images --labels evaluation/labels \
+  --model yolo11n.pt --conf 0.25 --iou-match 0.50 --roi-y-min 0.60 \
+  --output evaluation/results_pipelines_roi_assisted
+
+python tools/visualize_roi_ground_truth.py --roi-y-min 0.60
 ```
+
+Nếu bạn có sẵn frame trên máy và muốn tái lập: đặt ảnh vào `evaluation/images/`,
+nhãn vào `evaluation/labels/`, chạy `--validate-only` rồi chạy đúng ba lệnh trên.
+Bỏ `--roi-y-min` sẽ cho lại kết quả full-frame.
 
 Sinh ra năm file:
 

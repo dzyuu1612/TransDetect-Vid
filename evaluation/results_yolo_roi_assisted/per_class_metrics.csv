@@ -1,0 +1,5 @@
+﻿class_name,ground_truth_boxes,tp,fp,fn,precision,recall,f1,ap50,ap50_95
+car,54,52,0,2,1.0,0.963,0.9811,1.0,1.0
+motorcycle,850,644,0,206,1.0,0.7576,0.8621,0.9901,0.9901
+bus,0,0,0,0,0.0,0.0,0.0,N/A,N/A
+truck,0,0,0,0,0.0,0.0,0.0,N/A,N/A

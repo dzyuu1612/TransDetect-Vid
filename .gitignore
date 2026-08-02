@@ -27,6 +27,22 @@ evaluation/cvat_dataset.zip
 evaluation/label_previews/
 evaluation/prelabels/
 
+# Artefact của lần nhập nhãn từ CVAT: file export, thư mục giải nén trung gian
+# và bản nhãn candidate trước khi qua validator. Chỉ nhãn cuối trong
+# evaluation/labels/ được commit.
+evaluation/cvat_ground_truth.zip
+evaluation/cvat_ground_truth_extracted/
+evaluation/labels_candidate/
+
+# Ảnh preview: đã bị *.jpg loại sẵn, liệt kê tường minh cho rõ ý định.
+evaluation/ground_truth_previews/
+evaluation/roi_previews/
+
+# Kết quả full-frame cũ: giữ trên máy làm bằng chứng audit cho hiện tượng rò rỉ
+# nhãn (mAP50 = mAP50-95), KHÔNG dùng cho báo cáo và không commit để tránh nhầm
+# với kết quả ROI chính thức.
+evaluation/not_for_report_*/
+
 # Dataset train/valid/test dumps (images + labels). Only README/data.yaml
 # describing source and license should be committed; see datasets/README.md.
 datasets/*/train/

@@ -128,12 +128,55 @@ loại đúng loại phương tiện hay không?*
 > Không viết "YOLO chính xác hơn pipeline truyền thống X%" nếu đem mAP của
 > YOLO11 đặt cạnh một mAP Classical không có thật.
 
+### Kết quả đã đo
+
+Đánh giá trên **100 frame** của video demo, giới hạn ở các phương tiện có **tâm
+bounding box nằm trong 40% phía dưới khung hình** (`center_y/H >= 0,60`, tương
+đương `y >= 432px` với ảnh 1280×720). Trong phạm vi này có **904 ground-truth
+box**. Cả ground truth lẫn prediction đều lọc bằng cùng quy tắc, áp dụng trước
+khi ghép TP/FP/FN.
+
+| Model | GT trong ROI | TP | FP | FN | Precision | Recall | **F1** | mAP50 (*) | mAP50-95 (*) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| YOLO11n, imgsz=640, conf=0,25, IoU=0,50 | 904 | 696 | 0 | 208 | 100,00% | 76,99% | **87,00%** | 99,50% | 99,50% |
+
+Theo lớp:
+
+| Lớp | GT | TP | FP | FN | Precision | Recall | F1 | AP50 (*) | AP50-95 (*) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Car | 54 | 52 | 0 | 2 | 100,00% | 96,30% | 98,11% | 100,00% | 100,00% |
+| Motorcycle | 850 | 644 | 0 | 206 | 100,00% | 75,76% | 86,21% | 99,01% | 99,01% |
+| Bus | 0 | — | — | — | N/A | N/A | N/A | N/A | N/A |
+| Truck | 0 | — | — | — | N/A | N/A | N/A | N/A | N/A |
+
+> **(*) Cảnh báo assisted annotation.** Bộ nhãn tham chiếu được khởi tạo bằng
+> chính `yolo11n.pt` ở `conf=0.10` rồi chỉnh trong CVAT; audit cho thấy 99,5%
+> box giữ nguyên toạ độ pre-label. Vì vậy **Precision và mAP mang tính lạc
+> quan** và không phải kiểm định độc lập. `mAP50 = mAP50-95` chính là dấu vết
+> của hiện tượng này: mọi cặp khớp có IoU ≈ 1,0 nên quét ngưỡng 0,50→0,95 không
+> đổi gì. Dùng **F1 87,00%** làm chỉ số tổng hợp, **không** gọi 99,50% là "độ
+> chính xác tổng quát". Chi tiết: [`evaluation/ANNOTATION_AND_ROI_LIMITATIONS.md`](evaluation/ANNOTATION_AND_ROI_LIMITATIONS.md).
+
+**Bus và Truck có 0 ground truth trong ROI** — mọi xe buýt/xe tải trong video
+đều ở trên đường biên, nên hai lớp này không được đánh giá định lượng và bị loại
+khỏi phép lấy trung bình mAP.
+
+So sánh định vị class-agnostic (gộp bốn lớp thành `vehicle`), cùng ROI:
+
+| Pipeline | TP | FP | FN | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|---:|---:|
+| Truyền thống | 8 | 665 | 896 | 1,19% | 0,88% | 1,01% |
+| YOLO11 | 696 | 0 | 208 | 100,00% | 76,99% | 87,00% |
+
+Không tính mAP cho pipeline truyền thống. Dữ liệu chỉ từ **100 frame của một
+video, một cảnh giao thông**.
+
 ### Bước 1 — Kiểm thử code (không cần dữ liệu)
 
 ```bash
-python -m compileall main.py app_streamlit.py evaluate_yolo.py evaluate_pipelines.py src/transdetect
-python evaluate_yolo.py --selftest        # mong đợi 60/60 PASS
-python evaluate_pipelines.py --selftest   # mong đợi 23/23 PASS
+python -m compileall -q .
+python evaluate_yolo.py --selftest        # mong đợi 74/74 PASS
+python evaluate_pipelines.py --selftest   # mong đợi 30/30 PASS
 ```
 
 Kết quả mong đợi: `60/60 KIỂM THỬ ĐỀU PASS`.
@@ -169,17 +212,22 @@ Kiểm tra thiếu/thừa nhãn, sai `class_id`, toạ độ ngoài `[0,1]`, box
 mà không nạp model. Script **dừng hẳn và không sinh file kết quả nào** nếu
 dataset chưa hợp lệ — sai lệch âm thầm nguy hiểm hơn nhiều so với việc báo lỗi.
 
-### Bước 5 — Chạy đánh giá chính (YOLO11, class-aware)
+### Bước 5 — Chạy đánh giá chính (YOLO11, class-aware, trong ROI)
+
+Đây là **lệnh đã thực sự chạy** để sinh các số trong bảng ở đầu tài liệu:
 
 ```bash
 python evaluate_yolo.py \
   --images evaluation/images --labels evaluation/labels \
   --model yolo11n.pt --imgsz 640 --conf 0.25 --predict-conf 0.001 \
-  --nms-iou 0.45 --match-iou 0.50 --max-det 300 \
-  --output evaluation/results_yolo
+  --nms-iou 0.45 --match-iou 0.50 --max-det 300 --roi-y-min 0.60 \
+  --output evaluation/results_yolo_roi_assisted
 ```
 
-Kết quả tại `evaluation/results_yolo/`:
+`--roi-y-min` nhận **tỉ lệ** chiều cao ảnh và lọc theo **tâm** bounding box. Bỏ
+tham số này thì đánh giá chạy trên toàn khung hình như trước.
+
+Kết quả tại `evaluation/results_yolo_roi_assisted/`:
 
 | File | Dùng để làm gì |
 |---|---|
@@ -199,14 +247,17 @@ Dùng **đúng cùng** tập ảnh và ground truth:
 ```bash
 python evaluate_pipelines.py \
   --images evaluation/images --labels evaluation/labels \
-  --model yolo11n.pt --conf 0.25 --iou-match 0.50 \
-  --output evaluation/results_compare
+  --model yolo11n.pt --conf 0.25 --iou-match 0.50 --roi-y-min 0.60 \
+  --output evaluation/results_pipelines_roi_assisted
 ```
 
 Sinh `summary_metrics.csv`, `per_frame_metrics.csv` và `run_metadata.json`
-trong `evaluation/results_compare/`. Phép đánh giá này gộp
+trong `evaluation/results_pipelines_roi_assisted/`. Phép đánh giá này gộp
 Car/Motorcycle/Bus/Truck thành một lớp `vehicle`, nên chỉ so sánh khả năng
 **định vị** — cách so sánh công bằng nhất khi Classical không phân loại lớp.
+
+Lưu ý tên tham số khác nhau giữa hai script: `evaluate_yolo.py` dùng
+`--match-iou`, còn `evaluate_pipelines.py` dùng `--iou-match`.
 
 ### Kiểm chứng trước khi đưa vào báo cáo
 

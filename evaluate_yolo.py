@@ -133,6 +133,51 @@ def normalize_class_name(class_name):
 
 
 # ---------------------------------------------------------------------------
+# Vùng đánh giá (ROI)
+# ---------------------------------------------------------------------------
+
+def is_box_inside_vertical_roi(bbox, image_height, roi_y_min):
+    """Kiểm tra TÂM của box xyxy có nằm trong ROI dọc hay không.
+
+    ROI được định nghĩa bằng tỉ lệ chiều cao ảnh: `roi_y_min = 0.60` nghĩa là
+    chỉ đánh giá 40% phía dưới khung hình. Với ảnh 720px, ngưỡng là 432px.
+
+    Vì sao xét TÂM box chứ không xét toàn bộ box: một chiếc xe nằm vắt qua biên
+    ROI vẫn phải được phân loại dứt khoát vào trong hoặc ngoài. Nếu xét theo mép
+    box thì cùng một chiếc xe có thể vừa "trong" theo mép dưới vừa "ngoài" theo
+    mép trên, và quy tắc sẽ không còn nhất quán giữa ground truth với prediction
+    (hai box của cùng chiếc xe hiếm khi trùng mép nhau).
+
+    Box có tâm ĐÚNG tại biên `roi_y_min * H` được tính là NẰM TRONG ROI.
+
+    `roi_y_min = None` nghĩa là không giới hạn — giữ toàn bộ box, đúng hành vi
+    trước khi có tuỳ chọn này.
+    """
+    if roi_y_min is None:
+        return True
+
+    center_y = (bbox[1] + bbox[3]) / 2
+    return center_y >= roi_y_min * image_height
+
+
+def filter_items_by_vertical_roi(items, image_height, roi_y_min):
+    """Lọc list dict có khoá `bbox`, giữ nguyên mọi metadata khác.
+
+    Dùng chung cho cả ground truth (`class_name`, `bbox`) và prediction
+    (`class_name`, `confidence`, `bbox`) để hai bên chắc chắn dùng đúng cùng một
+    quy tắc biên — nếu lọc ground truth và prediction bằng hai đoạn mã khác
+    nhau, chỉ cần lệch dấu `>=` thành `>` là số liệu đã sai lệch âm thầm.
+    """
+    if roi_y_min is None:
+        return items
+
+    return [
+        item for item in items
+        if is_box_inside_vertical_roi(item["bbox"], image_height, roi_y_min)
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Đọc và kiểm tra dữ liệu
 # ---------------------------------------------------------------------------
 
@@ -349,7 +394,7 @@ def validate_dataset(images_dir, labels_dir):
 # ---------------------------------------------------------------------------
 
 def predict_all_images(detector, image_paths, labels_dir, low_confidence,
-                       nms_iou, image_size, max_det):
+                       nms_iou, image_size, max_det, roi_y_min=None):
     """Chạy YOLO11 MỘT LẦN trên toàn tập ở ngưỡng confidence rất thấp.
 
     Vì sao chạy ở `low_confidence` (0,001) thay vì 0,25: đường Precision-Recall
@@ -357,6 +402,14 @@ def predict_all_images(detector, image_paths, labels_dir, low_confidence,
     ở 0,25 thì đường PR bị cắt cụt và AP thấp hơn giá trị thật. Chỉ số
     Precision/Recall/F1 vẫn được tính ở 0,25 bằng cách LỌC LẠI danh sách này,
     nên toàn bộ báo cáo chỉ tốn đúng một lượt suy luận.
+
+    Nếu `roi_y_min` được truyền, CẢ ground truth VÀ prediction đều được lọc ở
+    ngay đây — tức là trước matching TP/FP/FN và trước khi dựng đường
+    Precision-Recall. Đặt phép lọc tại một chỗ duy nhất, sớm nhất trong luồng dữ
+    liệu, bảo đảm mọi chỉ số phía sau (P/R/F1, AP50, mAP50-95, per-frame,
+    per-class) đều cùng một phạm vi. Nếu chỉ lọc prediction ở `conf=0.25` thì
+    P/R/F1 là ROI nhưng mAP vẫn là full-frame, hai nhóm chỉ số sẽ không so sánh
+    được với nhau.
 
     Trả về (predictions_by_image, ground_truths_by_image), cả hai đều là dict
     khoá theo tên ảnh.
@@ -372,8 +425,10 @@ def predict_all_images(detector, image_paths, labels_dir, low_confidence,
         image_height, image_width = frame.shape[:2]
         label_path = labels_dir / f"{image_path.stem}.txt"
 
-        ground_truths_by_image[image_path.name] = load_ground_truth(
-            label_path, image_width, image_height
+        ground_truths_by_image[image_path.name] = filter_items_by_vertical_roi(
+            load_ground_truth(label_path, image_width, image_height),
+            image_height,
+            roi_y_min,
         )
 
         detections = detector.detect_frame(
@@ -395,7 +450,9 @@ def predict_all_images(detector, image_paths, labels_dir, low_confidence,
                 "bbox": [float(value) for value in detection["bbox"]],
             })
 
-        predictions_by_image[image_path.name] = frame_predictions
+        predictions_by_image[image_path.name] = filter_items_by_vertical_roi(
+            frame_predictions, image_height, roi_y_min
+        )
 
         if index % 10 == 0 or index == len(image_paths):
             print(f"  Đã suy luận {index}/{len(image_paths)} ảnh")
@@ -735,7 +792,18 @@ def build_run_metadata(arguments, dataset_stats, device, prediction_count):
     nhất cho biết kết quả cũ được sinh ra dưới cấu hình nào.
     """
     return {
-        "evaluation_scope": "YOLO11 class-aware object detection",
+        "evaluation_scope": (
+            "vertical_roi_by_box_center" if arguments.roi_y_min is not None
+            else "YOLO11 class-aware object detection"
+        ),
+        "roi_y_min": arguments.roi_y_min,
+        "roi_definition": (
+            f"box center_y / image_height >= {arguments.roi_y_min}"
+            if arguments.roi_y_min is not None else None
+        ),
+        "annotation_source":
+            "YOLO11-assisted, human-reviewed reference annotations",
+        "annotation_independence": False,
         "dataset_name": "TransDetect internal test set",
         "class_names": EVALUATION_CLASSES,
         "image_size": arguments.imgsz,
@@ -936,7 +1004,78 @@ def run_selftest():
               len(load_ground_truth(
                   Path(temporary_directory) / "khong_co.txt", 200, 100)), 0)
 
-    print("8) validate_dataset phải DỪNG khi nhãn sai")
+    print("8) lọc ROI dọc theo tâm box")
+    # image_height=100, roi_y_min=0.60 -> biên nằm ở y = 60.
+    check("tâm y=20 -> ngoài ROI",
+          is_box_inside_vertical_roi([0, 10, 20, 30], 100, 0.60), False)
+    check("tâm y=60 ĐÚNG BIÊN -> trong ROI",
+          is_box_inside_vertical_roi([0, 50, 20, 70], 100, 0.60), True)
+    check("tâm y=80 -> trong ROI",
+          is_box_inside_vertical_roi([0, 70, 20, 90], 100, 0.60), True)
+    check("roi_y_min=None -> giữ mọi box",
+          is_box_inside_vertical_roi([0, 0, 20, 2], 100, None), True)
+
+    # Ground truth và prediction phải dùng ĐÚNG cùng quy tắc biên.
+    boundary_box = [0, 50, 20, 70]
+    check("GT và prediction cùng kết quả ở biên",
+          is_box_inside_vertical_roi(boundary_box, 100, 0.60)
+          == is_box_inside_vertical_roi(boundary_box, 100, 0.60), True)
+
+    mixed = [
+        box("car", [0, 10, 20, 30], 0.9),      # tâm 20 -> loại
+        box("truck", [0, 50, 20, 70], 0.8),    # tâm 60 -> giữ (biên)
+        box("bus", [0, 70, 20, 90], 0.7),      # tâm 80 -> giữ
+    ]
+    kept = filter_items_by_vertical_roi(mixed, 100, 0.60)
+    check("lọc list -> còn 2 box", len(kept), 2)
+    check("giữ nguyên class sau khi lọc", kept[0]["class_name"], "truck")
+    check("giữ nguyên confidence sau khi lọc", kept[0]["confidence"], 0.8)
+    check("roi=None trả về nguyên list",
+          len(filter_items_by_vertical_roi(mixed, 100, None)), 3)
+
+    # AP phải nhận danh sách ĐÃ lọc ROI, không phải danh sách full-frame.
+    roi_ground_truths = {"a.jpg": [box("car", [0, 70, 20, 90])]}
+    roi_predictions = {"a.jpg": filter_items_by_vertical_roi(
+        [box("car", [0, 70, 20, 90], 0.9),
+         box("car", [0, 0, 20, 20], 0.95)],   # ngoài ROI, phải bị loại trước AP
+        100, 0.60)}
+    check("AP=1 khi FP ngoài ROI đã bị lọc trước",
+          calculate_ap_for_class(
+              roi_predictions, roi_ground_truths, "car", 0.5), 1.0)
+
+    print("9) validate_arguments từ chối ROI ngoài [0,1]")
+
+    class FakeArguments:
+        conf = 0.25
+        predict_conf = 0.001
+        nms_iou = 0.45
+        match_iou = 0.50
+        imgsz = 640
+        max_det = 300
+        model = "yolo11n.pt"
+        roi_y_min = None
+
+    def expect_roi_rejected(name, value):
+        arguments = FakeArguments()
+        arguments.roi_y_min = value
+        try:
+            validate_arguments(arguments)
+            check(name, "không báo lỗi", "ValueError")
+        except ValueError:
+            check(name, "ValueError", "ValueError")
+
+    expect_roi_rejected("roi_y_min = -0.1 bị từ chối", -0.1)
+    expect_roi_rejected("roi_y_min = 1.5 bị từ chối", 1.5)
+
+    accepted = FakeArguments()
+    accepted.roi_y_min = 0.60
+    validate_arguments(accepted)
+    check("roi_y_min = 0.60 được chấp nhận", True, True)
+    accepted.roi_y_min = None
+    validate_arguments(accepted)
+    check("roi_y_min = None được chấp nhận", True, True)
+
+    print("10) validate_dataset phải DỪNG khi nhãn sai")
     import numpy
 
     def make_dataset(label_text, directory):
@@ -1014,6 +1153,14 @@ def build_parser():
                         help="Ngưỡng IoU để coi prediction khớp ground truth.")
     parser.add_argument("--max-det", type=int, default=config.MAX_DET,
                         help="Số detection tối đa mỗi frame.")
+    parser.add_argument("--roi-y-min", type=float, default=None,
+                        help=(
+                            "Giới hạn vùng đánh giá theo TỈ LỆ chiều cao ảnh "
+                            "[0,1]. Lọc theo TÂM bounding box: chỉ giữ box có "
+                            "center_y/H >= giá trị này. Ví dụ 0.60 nghĩa là chỉ "
+                            "đánh giá 40%% phía dưới khung hình. Áp dụng cho cả "
+                            "ground truth lẫn prediction. Mặc định không giới hạn."
+                        ))
     parser.add_argument("--output", default="evaluation/results_yolo",
                         help="Thư mục lưu kết quả.")
     parser.add_argument("--selftest", action="store_true",
@@ -1056,6 +1203,14 @@ def validate_arguments(arguments):
     if arguments.max_det <= 0:
         raise ValueError(f"--max-det phải dương, đang nhận {arguments.max_det}")
 
+    if arguments.roi_y_min is not None and not 0.0 <= arguments.roi_y_min <= 1.0:
+        raise ValueError(
+            f"--roi-y-min phải nằm trong [0, 1] vì đây là TỈ LỆ chiều cao ảnh, "
+            f"đang nhận {arguments.roi_y_min}.\n"
+            f"Ví dụ 0.60 nghĩa là chỉ đánh giá 40% phía dưới khung hình "
+            f"(với ảnh cao 720px thì tương đương center_y >= 432px)."
+        )
+
     model_path = Path(arguments.model)
     if not model_path.is_file() and not ULTRALYTICS_WEIGHT_PATTERN.match(
         model_path.name
@@ -1076,6 +1231,16 @@ def build_result_rows(arguments, dataset_stats, predictions_by_image,
     totals_per_class = {
         name: {"tp": 0, "fp": 0, "fn": 0} for name in EVALUATION_CLASSES
     }
+
+    # Đếm ground truth từ tập ĐÃ LỌC ROI, không lấy từ dataset_stats.
+    # dataset_stats đến từ validate_dataset, vốn kiểm tra định dạng trên toàn bộ
+    # file nhãn (full-frame) và không biết gì về ROI. Nếu lấy số đó làm mẫu số
+    # thì khi bật --roi-y-min, đẳng thức TP + FN = GT sẽ sai và mọi Recall đều
+    # bị chia cho một tổng lớn hơn thực tế.
+    ground_truth_per_class = {name: 0 for name in EVALUATION_CLASSES}
+    for frame_ground_truths in ground_truths_by_image.values():
+        for ground_truth in frame_ground_truths:
+            ground_truth_per_class[ground_truth["class_name"]] += 1
 
     for image_name in sorted(predictions_by_image):
         frame_predictions = predictions_by_image[image_name]
@@ -1123,8 +1288,7 @@ def build_result_rows(arguments, dataset_stats, predictions_by_image,
         )
         per_class_rows.append({
             "class_name": class_name,
-            "ground_truth_boxes":
-                dataset_stats["boxes_per_class"][class_name],
+            "ground_truth_boxes": ground_truth_per_class[class_name],
             "tp": counts["tp"],
             "fp": counts["fp"],
             "fn": counts["fn"],
@@ -1145,7 +1309,7 @@ def build_result_rows(arguments, dataset_stats, predictions_by_image,
     summary_row = {
         "model": Path(arguments.model).name,
         "images": dataset_stats["number_of_images"],
-        "ground_truth_boxes": dataset_stats["number_of_ground_truth_boxes"],
+        "ground_truth_boxes": sum(ground_truth_per_class.values()),
         "predictions": sum(row["predictions"] for row in per_frame_rows),
         "tp": total_true_positive,
         "fp": total_false_positive,
@@ -1188,6 +1352,11 @@ def print_results(summary_row, per_class_rows, arguments):
         f"imgsz={arguments.imgsz} | conf báo cáo={arguments.conf} | "
         f"NMS IoU={arguments.nms_iou} | IoU khớp={arguments.match_iou}"
     )
+    if arguments.roi_y_min is not None:
+        print(
+            f"Phạm vi: ROI dọc, chỉ box có center_y/H >= {arguments.roi_y_min} "
+            f"(cả ground truth lẫn prediction)"
+        )
     print("-" * 78)
     print(
         f"{'Lớp':<12}{'GT':>6}{'TP':>6}{'FP':>6}{'FN':>6}"
@@ -1257,6 +1426,10 @@ def main():
         if path.suffix.lower() in IMAGE_EXTENSIONS
     )
 
+    if arguments.roi_y_min is not None:
+        print(f"  Phạm vi ROI: center_y/H >= {arguments.roi_y_min} "
+              f"(lọc cả ground truth và prediction)")
+
     print(f"Đang chạy YOLO11 ở conf={arguments.predict_conf} "
           f"(thu prediction để tính AP)...")
     predictions_by_image, ground_truths_by_image = predict_all_images(
@@ -1267,6 +1440,7 @@ def main():
         nms_iou=arguments.nms_iou,
         image_size=arguments.imgsz,
         max_det=arguments.max_det,
+        roi_y_min=arguments.roi_y_min,
     )
 
     # BƯỚC 3 - Tính chỉ số.
@@ -1277,10 +1451,12 @@ def main():
 
     # Kiểm tra bất biến: nếu đẳng thức này sai thì logic ghép box đã hỏng và
     # mọi con số phía sau đều không đáng tin.
+    # So với ground_truth_boxes của chính summary (đã lọc ROI nếu có), KHÔNG so
+    # với dataset_stats vốn luôn là full-frame.
     assert (
         results["summary"]["tp"] + results["summary"]["fn"]
-        == dataset_stats["number_of_ground_truth_boxes"]
-    ), "TP + FN != tổng ground-truth box"
+        == results["summary"]["ground_truth_boxes"]
+    ), "TP + FN != tổng ground-truth box trong phạm vi đánh giá"
     for row in results["per_class"]:
         assert row["tp"] + row["fn"] == row["ground_truth_boxes"], (
             f"Lớp {row['class_name']}: TP + FN != số ground-truth box"

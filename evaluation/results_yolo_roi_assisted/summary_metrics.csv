@@ -1,0 +1,2 @@
+﻿model,images,ground_truth_boxes,predictions,tp,fp,fn,precision,recall,f1,map50,map50_95
+yolo11n.pt,100,904,696,696,0,208,1.0,0.7699,0.87,0.995,0.995

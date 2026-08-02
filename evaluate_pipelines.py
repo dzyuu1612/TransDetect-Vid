@@ -89,6 +89,38 @@ def calculate_iou(box_a, box_b):
     return intersection_area / union_area
 
 
+def is_box_inside_vertical_roi(box, image_height, roi_y_min):
+    """Kiểm tra TÂM của box xyxy có nằm trong ROI dọc hay không.
+
+    ROI tính theo tỉ lệ chiều cao ảnh: `roi_y_min = 0.60` nghĩa là chỉ đánh giá
+    40% phía dưới khung hình (ảnh cao 720px -> ngưỡng 432px).
+
+    Xét TÂM box chứ không xét mép: một chiếc xe vắt qua biên vẫn phải được phân
+    loại dứt khoát vào trong hoặc ngoài, và quy tắc phải giống hệt nhau cho
+    ground truth, box của Classical lẫn prediction của YOLO — nếu không, hai
+    bên sẽ được lọc bằng hai tiêu chí khác nhau và phép so sánh mất công bằng.
+
+    Box có tâm ĐÚNG tại biên được tính là nằm trong ROI.
+    `roi_y_min = None` giữ toàn bộ box, đúng hành vi trước khi có tuỳ chọn này.
+    """
+    if roi_y_min is None:
+        return True
+
+    center_y = (box[1] + box[3]) / 2
+    return center_y >= roi_y_min * image_height
+
+
+def filter_boxes_by_vertical_roi(boxes, image_height, roi_y_min):
+    """Giữ các box xyxy có tâm nằm trong ROI dọc."""
+    if roi_y_min is None:
+        return boxes
+
+    return [
+        box for box in boxes
+        if is_box_inside_vertical_roi(box, image_height, roi_y_min)
+    ]
+
+
 def load_yolo_ground_truth(label_path, image_width, image_height):
     """Đọc nhãn định dạng YOLO và đổi toạ độ chuẩn hoá sang xyxy pixel.
 
@@ -424,12 +456,17 @@ def evaluate_method(
     label_directory,
     prediction_function,
     iou_threshold,
+    roi_y_min=None,
 ):
     """Đánh giá một phương pháp trên toàn bộ tập ảnh.
 
     TP/FP/FN được cộng dồn trên toàn tập rồi mới tính Precision/Recall/F1
     (micro-average), thay vì lấy trung bình chỉ số của từng frame — cách này
     tránh việc một frame chỉ có 1 xe lại có cùng trọng số với frame có 30 xe.
+
+    Nếu `roi_y_min` được truyền, ground truth và box dự đoán đều bị lọc theo
+    cùng quy tắc tâm box TRƯỚC khi ghép TP/FP/FN. Cả hai nhánh (Classical và
+    YOLO11) đi qua đúng hàm này nên chắc chắn dùng chung một phạm vi.
     """
     total_ground_truth = 0
     total_true_positive = 0
@@ -449,12 +486,18 @@ def evaluate_method(
         if not label_path.exists():
             missing_label_files.append(image_path.name)
 
-        ground_truth_boxes = load_yolo_ground_truth(
-            label_path,
-            image_width,
+        # Lọc ROI ngay tại đây, trước matching: ground truth và prediction phải
+        # đi qua đúng cùng một quy tắc thì phép so sánh mới công bằng.
+        ground_truth_boxes = filter_boxes_by_vertical_roi(
+            load_yolo_ground_truth(label_path, image_width, image_height),
             image_height,
+            roi_y_min,
         )
-        predicted_boxes = prediction_function(frame)
+        predicted_boxes = filter_boxes_by_vertical_roi(
+            prediction_function(frame),
+            image_height,
+            roi_y_min,
+        )
 
         true_positive, false_positive, false_negative = match_predictions(
             predicted_boxes,
@@ -542,7 +585,8 @@ def _sha256_of_file(path):
     return digest.hexdigest()
 
 
-def build_run_metadata(dataset_stats, model_path, conf, iou_match, device):
+def build_run_metadata(dataset_stats, model_path, conf, iou_match, device,
+                       roi_y_min=None):
     """Gom toàn bộ thông tin cần để TÁI LẬP đúng kết quả này về sau.
 
     Không ghi cứng phiên bản thư viện: đọc trực tiếp từ môi trường đang chạy.
@@ -553,6 +597,18 @@ def build_run_metadata(dataset_stats, model_path, conf, iou_match, device):
         "git_commit": _get_git_commit(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "evaluation_mode": "class-agnostic",
+        "evaluation_scope": (
+            "vertical_roi_by_box_center" if roi_y_min is not None
+            else "full_frame"
+        ),
+        "roi_y_min": roi_y_min,
+        "roi_definition": (
+            f"box center_y / image_height >= {roi_y_min}"
+            if roi_y_min is not None else None
+        ),
+        "annotation_source":
+            "YOLO11-assisted, human-reviewed reference annotations",
+        "annotation_independence": False,
         "number_of_images": dataset_stats["number_of_images"],
         "number_of_ground_truth_boxes":
             dataset_stats["number_of_ground_truth_boxes"],
@@ -678,7 +734,31 @@ def run_selftest():
     check("dưới ngưỡng IoU -> FP", fp, 1)
     check("dưới ngưỡng IoU -> FN", fn, 1)
 
-    print("3) calculate_metrics")
+    print("3) lọc ROI dọc theo tâm box")
+    # image_height=100, roi_y_min=0.60 -> biên nằm ở y = 60.
+    check("tâm y=20 -> ngoài ROI",
+          is_box_inside_vertical_roi([0, 10, 20, 30], 100, 0.60), False)
+    check("tâm y=60 ĐÚNG BIÊN -> trong ROI",
+          is_box_inside_vertical_roi([0, 50, 20, 70], 100, 0.60), True)
+    check("tâm y=80 -> trong ROI",
+          is_box_inside_vertical_roi([0, 70, 20, 90], 100, 0.60), True)
+    check("roi_y_min=None -> giữ mọi box",
+          is_box_inside_vertical_roi([0, 0, 20, 2], 100, None), True)
+
+    mixed_boxes = [[0, 10, 20, 30], [0, 50, 20, 70], [0, 70, 20, 90]]
+    check("lọc list -> còn 2 box",
+          len(filter_boxes_by_vertical_roi(mixed_boxes, 100, 0.60)), 2)
+    check("roi=None trả về nguyên list",
+          len(filter_boxes_by_vertical_roi(mixed_boxes, 100, None)), 3)
+
+    # Ground truth và prediction phải cho cùng kết quả ở biên, nếu không phép so
+    # sánh giữa Classical và YOLO sẽ không còn công bằng.
+    boundary = [0, 50, 20, 70]
+    check("GT và prediction cùng quy tắc biên",
+          filter_boxes_by_vertical_roi([boundary], 100, 0.60)
+          == filter_boxes_by_vertical_roi([boundary], 100, 0.60), True)
+
+    print("4) calculate_metrics")
     # Ví dụ tính tay trong tài liệu: TP=80, FP=20, FN=40
     precision, recall, f1 = calculate_metrics(80, 20, 40)
     check("Precision", precision, 0.80)
@@ -736,6 +816,18 @@ def main():
         help="Ngưỡng IoU để xác định True Positive.",
     )
     parser.add_argument(
+        "--roi-y-min",
+        type=float,
+        default=None,
+        help=(
+            "Giới hạn vùng đánh giá theo TỈ LỆ chiều cao ảnh [0,1]. Lọc theo "
+            "TÂM bounding box: chỉ giữ box có center_y/H >= giá trị này. Ví dụ "
+            "0.60 nghĩa là chỉ đánh giá 40%% phía dưới khung hình. Áp dụng cho "
+            "ground truth, box Classical và prediction YOLO. Mặc định không "
+            "giới hạn."
+        ),
+    )
+    parser.add_argument(
         "--output",
         default="evaluation/results",
         help="Thư mục lưu kết quả.",
@@ -754,6 +846,14 @@ def main():
 
     if args.selftest:
         return run_selftest()
+
+    if args.roi_y_min is not None and not 0.0 <= args.roi_y_min <= 1.0:
+        raise ValueError(
+            f"--roi-y-min phải nằm trong [0, 1] vì đây là TỈ LỆ chiều cao ảnh, "
+            f"đang nhận {args.roi_y_min}.\n"
+            f"Ví dụ 0.60 nghĩa là chỉ đánh giá 40% phía dưới khung hình "
+            f"(với ảnh cao 720px thì tương đương center_y >= 432px)."
+        )
 
     image_directory = Path(args.images)
     label_directory = Path(args.labels)
@@ -793,6 +893,7 @@ def main():
         label_directory=label_directory,
         prediction_function=detect_with_classical,
         iou_threshold=args.iou_match,
+        roi_y_min=args.roi_y_min,
     )
 
     print("Đang đánh giá YOLO11...")
@@ -806,6 +907,7 @@ def main():
             args.conf,
         ),
         iou_threshold=args.iou_match,
+        roi_y_min=args.roi_y_min,
     )
 
     write_csv(
@@ -824,15 +926,19 @@ def main():
             conf=args.conf,
             iou_match=args.iou_match,
             device=yolo_detector.device,
+            roi_y_min=args.roi_y_min,
         ),
     )
 
     # Kiểm tra bất biến: nếu một trong các đẳng thức này sai thì logic ghép
     # box đã hỏng, và mọi con số phía sau đều không đáng tin.
+    #
+    # So với ground truth trong PHẠM VI đánh giá (summary tự đếm sau khi lọc
+    # ROI), không so với dataset_stats vốn luôn đếm trên toàn khung hình.
     for summary in (classical_summary, yolo_summary):
         assert summary["tp"] + summary["fn"] == \
-            dataset_stats["number_of_ground_truth_boxes"], \
-            f"{summary['method']}: TP + FN != tổng ground truth"
+            summary["number_of_ground_truth_boxes"], \
+            f"{summary['method']}: TP + FN != tổng ground truth trong phạm vi"
         assert 0.0 <= summary["precision"] <= 1.0, "Precision ngoài [0, 1]"
         assert 0.0 <= summary["recall"] <= 1.0, "Recall ngoài [0, 1]"
         assert 0.0 <= summary["f1"] <= 1.0, "F1 ngoài [0, 1]"
