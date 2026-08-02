@@ -109,9 +109,42 @@ dịch 1–2 pixel), lấy liên tiếp thì thực chất chỉ đánh giá tr�
 
 ### Bước 2 — Gán nhãn (VIỆC PHẢI LÀM)
 
-Dùng LabelImg, CVAT hoặc Roboflow Annotate, xuất định dạng YOLO vào
-`evaluation/labels/`. Ghi lại **công cụ và người gán nhãn** để đưa vào Mục 4.1
-của báo cáo.
+Ba công cụ hỗ trợ trong `tools/` giúp rút ngắn công việc này. Chúng **chỉ chuẩn
+bị dữ liệu**, không tạo ra ground truth.
+
+```bash
+# 2a. Sinh nhãn sơ bộ bằng YOLO (conf thấp 0,10 cho đỡ bỏ sót)
+python tools/prelabel_yolo.py
+
+# 2b. Đóng gói ảnh + nhãn sơ bộ thành ZIP để import vào CVAT
+python tools/prepare_cvat_dataset.py --labels evaluation/prelabels
+
+# 2c. Xem nhãn bằng mắt bất cứ lúc nào
+python tools/visualize_ground_truth.py --labels evaluation/prelabels
+```
+
+Nhãn sơ bộ được ghi vào `evaluation/prelabels/`, **không bao giờ** ghi thẳng vào
+`evaluation/labels/`. Trong CVAT phải mở **từng ảnh** và sửa bốn loại lỗi:
+
+1. **Box thiếu** — quan trọng nhất. Xe nhỏ ở xa, xe đỗ, xe ở mép ảnh. Bỏ sót
+   ground truth sẽ khiến prediction ĐÚNG của YOLO bị tính nhầm thành False
+   Positive, làm Precision sai.
+2. **Box thừa** — vùng không phải xe, hoặc một xe bị tách thành hai box.
+3. **Sai lớp** — hay gặp nhất là xe khách bị gán thành `truck`.
+4. **Box không ôm sát** phần phương tiện nhìn thấy được.
+
+Chỉ sau khi kiểm tra bằng mắt toàn bộ ảnh mới chép nhãn sang
+`evaluation/labels/`. Ghi lại **công cụ, người gán nhãn, người kiểm tra chéo và
+ngày hoàn tất** để đưa vào Mục 4.1 của báo cáo.
+
+Khuyến nghị kiểm tra chéo: một người gán toàn bộ, người thứ hai kiểm tra ít nhất
+10–20% số frame. Nếu nhóm có bốn thành viên, chia ~25 frame/người và kiểm tra
+chéo tối thiểu 5 frame/người.
+
+> `evaluate_yolo.py --validate-only` chỉ kiểm tra **định dạng** — đủ file,
+> `class_id` trong `0..3`, toạ độ trong `[0,1]`. Nó hoàn toàn không biết box có
+> được vẽ đúng lên chiếc xe hay không. Vì vậy phải dùng
+> `tools/visualize_ground_truth.py` và nhìn bằng mắt.
 
 ### Bước 3 — Kiểm tra nhãn
 

@@ -19,6 +19,14 @@ runs/
 # Streamlit config
 .streamlit/
 
+# Artefact của quy trình gán nhãn. ZIP cho CVAT nặng ~29 MB nên không commit;
+# ảnh preview đã bị *.jpg loại sẵn, liệt kê ở đây cho rõ ràng. Nhãn sơ bộ trong
+# prelabels/ KHÔNG phải ground truth nên cũng không commit — chỉ nhãn đã được
+# con người kiểm tra trong evaluation/labels/ mới là dữ liệu thật.
+evaluation/cvat_dataset.zip
+evaluation/label_previews/
+evaluation/prelabels/
+
 # Dataset train/valid/test dumps (images + labels). Only README/data.yaml
 # describing source and license should be committed; see datasets/README.md.
 datasets/*/train/
