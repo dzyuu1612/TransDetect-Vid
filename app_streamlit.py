@@ -47,6 +47,22 @@ if "results_history" not in st.session_state:
 if "export_data_list" not in st.session_state:
     st.session_state.export_data_list = []
 
+
+def _reset_detection_results():
+    """Xóa kết quả cũ khi đổi phương pháp để tránh hiển thị sai schema."""
+    st.session_state.results_history = []
+    st.session_state.export_data_list = []
+    st.session_state.is_running = False
+    st.session_state.is_paused = False
+    st.session_state.current_frame_idx = 0
+
+
+@st.cache_resource(show_spinner="Đang tải mô hình YOLO11...")
+def _load_yolo_detector(model_path):
+    """Tải model một lần và tái sử dụng qua các lần Streamlit rerun."""
+    return Yolo11VehicleDetector(model_path)
+
+
 # ═══════════════════════════════════════════════════════════════
 # CUSTOM CSS
 # ═══════════════════════════════════════════════════════════════
@@ -136,29 +152,49 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 # ═══════════════════════════════════════════════════════════════
 # HTML RENDER HELPERS
 # ═══════════════════════════════════════════════════════════════
-def _build_results_table(rows, highlight_row_idx=0):
+def _build_results_dataframe(rows, method):
+    if method == "Classical Pipeline":
+        columns = ["Frame", "Time (s)", "Candidate Count", "Confidence"]
+        data = [{
+            "Frame": r[0],
+            "Time (s)": r[1],
+            "Candidate Count": r[2],
+            "Confidence": "N/A",
+        } for r in rows]
+        return pd.DataFrame(data, columns=columns)
+
+    columns = [
+        "Frame",
+        "Time (s)",
+        "Car",
+        "Car Conf",
+        "Motorcycle",
+        "Motorcycle Conf",
+        "Bus",
+        "Bus Conf",
+        "Truck",
+        "Truck Conf",
+        "Total",
+    ]
     if not rows:
-        # #52606d on white: 6.46:1 (was #94a3b8 at 2.56:1 — a real AA failure).
-        return '<div style="padding: 20px; text-align: center; color: #52606d; font-size: 13px; border: 1px dashed #cbd5e1; border-radius: 8px;">No data yet. Run detection.</div>'
-        
-    html = '<table class="results-table"><thead><tr>'
-    html += '<th rowspan="2" class="group-header" style="border-bottom:2px solid #e2e8f0">Frame</th>'
-    html += '<th rowspan="2" class="group-header" style="border-bottom:2px solid #e2e8f0">Time (s)</th>'
-    for name in ("Car", "Motorcycle", "Bus", "Truck"):
-        html += f'<th colspan="2" class="group-header">{name}</th>'
-    html += '<th rowspan="2" class="group-header" style="border-bottom:2px solid #e2e8f0">Total</th></tr><tr>'
-    for _ in range(4):
-        html += '<th class="sub-header">Count</th><th class="sub-header">Avg Conf</th>'
-    html += "</tr></thead><tbody>"
-    
-    for i, r in enumerate(rows):
-        cls = ' class="row-highlight"' if i == highlight_row_idx else ""
-        html += f"<tr{cls}><td>{r[0]}</td><td>{r[1]}</td>"
-        for j in range(2, 10, 2):
-            html += f"<td>{r[j]}</td><td>{r[j+1]:.2f}</td>"
-        html += f"<td>{r[10]}</td></tr>"
-    html += "</tbody></table>"
-    return html
+        return pd.DataFrame(columns=columns)
+
+    data = []
+    for r in rows:
+        data.append({
+            "Frame": r[0],
+            "Time (s)": r[1],
+            "Car": r[2],
+            "Car Conf": round(r[3], 2),
+            "Motorcycle": r[4],
+            "Motorcycle Conf": round(r[5], 2),
+            "Bus": r[6],
+            "Bus Conf": round(r[7], 2),
+            "Truck": r[8],
+            "Truck Conf": round(r[9], 2),
+            "Total": r[10],
+        })
+    return pd.DataFrame(data, columns=columns)
 
 def _avg_conf(detections, display_name):
     """Confidence trung binh cua mot lop hien thi trong frame hien tai (Muc 4.2.2)."""
@@ -237,9 +273,10 @@ def main():
             # Logic to handle both
             if uploaded_file is not None:
                 if st.session_state.uploaded_file_name != uploaded_file.name:
-                    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-                    tfile.write(uploaded_file.read())
-                    st.session_state.uploaded_video_path = tfile.name
+                    suffix = os.path.splitext(uploaded_file.name)[1].lower() or ".mp4"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tfile:
+                        tfile.write(uploaded_file.getbuffer())
+                        st.session_state.uploaded_video_path = tfile.name
                     st.session_state.uploaded_file_name = uploaded_file.name
                     st.session_state.results_history = []
                     st.session_state.export_data_list = []
@@ -258,7 +295,14 @@ def main():
             # duoi (dong ~460-467): tien xu ly + threshold + Sobel + contour
             # DE TIM BOX, roi Lucas-Kanade DE VE mui ten chuyen dong. Truoc day
             # caption chi ghi "Threshold + Sobel + Contour", bo sot Lucas-Kanade.
-            st.radio("method", ["Classical Pipeline", "YOLO11"], captions=["Threshold + Sobel + Contour + Lucas-Kanade", "Ultralytics YOLO11"], label_visibility="collapsed", key="method_selector")
+            st.radio(
+                "method",
+                ["Classical Pipeline", "YOLO11"],
+                captions=["Threshold + Sobel + Contour + Lucas-Kanade", "Ultralytics YOLO11"],
+                label_visibility="collapsed",
+                key="method_selector",
+                on_change=_reset_detection_results,
+            )
 
             st.divider()
             st.markdown('<p class="section-title">Parameters</p>', unsafe_allow_html=True)
@@ -276,7 +320,7 @@ def main():
             st.divider()
             c_run, c_pause, c_stop = st.columns(3)
             with c_run:
-                if st.button("▶ Run", type="primary", use_container_width=True):
+                if st.button("Run Detection", type="primary", width="stretch"):
                     if st.session_state.uploaded_video_path:
                         st.session_state.is_running = True
                         st.session_state.is_paused = False
@@ -286,12 +330,12 @@ def main():
                     else:
                         st.error("Upload a video first!")
             with c_pause:
-                pause_label = "▶ Resume" if st.session_state.get("is_paused") else "⏸ Pause"
-                if st.button(pause_label, use_container_width=True):
+                pause_label = "Resume" if st.session_state.get("is_paused") else "Pause"
+                if st.button(pause_label, width="stretch"):
                     if st.session_state.is_running:
                         st.session_state.is_paused = not st.session_state.get("is_paused", False)
             with c_stop:
-                if st.button("⬜ Stop", use_container_width=True):
+                if st.button("Stop", width="stretch"):
                     st.session_state.is_running = False
                     st.session_state.is_paused = False
                     st.session_state.current_frame_idx = 0
@@ -330,13 +374,20 @@ def main():
                 csv_data = "frame_id,class_name,confidence,count\n"
 
             with hc: st.markdown("**Detection Results** (Preview)")
-            with cc: st.download_button("⬇ CSV", csv_data, "res.csv", use_container_width=True)
+            with cc: st.download_button("⬇ CSV", csv_data, "res.csv", width="stretch")
             json_data = json.dumps(st.session_state.get("export_data_list", []), ensure_ascii=False, indent=2)
-            with jc: st.download_button("{ } JSON", json_data, "res.json", use_container_width=True)
+            with jc: st.download_button("{ } JSON", json_data, "res.json", width="stretch")
 
             table_placeholder = st.empty()
             if not st.session_state.is_running:
-                table_placeholder.markdown(_build_results_table(st.session_state.results_history), unsafe_allow_html=True)
+                table_placeholder.dataframe(
+                    _build_results_dataframe(
+                        st.session_state.results_history,
+                        st.session_state.method_selector,
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
 
     # ─── COLUMN 3: ANALYTICS ───
     with col3:
@@ -366,18 +417,18 @@ def main():
             if not st.session_state.is_running:
                 fps_placeholder.markdown('<div class="fps-container"><p class="fps-label">FPS (Current)</p><p><span class="fps-value">0.0</span><span class="fps-unit">fps</span></p></div>', unsafe_allow_html=True)
                 avg_fps_metric.metric("Average FPS", "0.0 fps")
-                res_metric.metric("Resolution", "-")
+                res_metric.markdown("**Resolution**\n\n—")
                 
-                if st.session_state.get("method_selector", "YOLO11") == "Classical Pipeline":
-                    car_placeholder.markdown(render_vehicle_card("Vùng ứng viên", 0, "blue"), unsafe_allow_html=True)
+                if st.session_state.get("method_selector") == "Classical Pipeline":
+                    car_placeholder.metric("Vùng ứng viên", 0)
                     moto_placeholder.empty()
                     bus_placeholder.empty()
                     truck_placeholder.empty()
                 else:
-                    car_placeholder.markdown(render_vehicle_card("Car", 0, "blue"), unsafe_allow_html=True)
-                    moto_placeholder.markdown(render_vehicle_card("Motorcycle", 0, "blue"), unsafe_allow_html=True)
-                    bus_placeholder.markdown(render_vehicle_card("Bus", 0, "green"), unsafe_allow_html=True)
-                    truck_placeholder.markdown(render_vehicle_card("Truck", 0, "green"), unsafe_allow_html=True)
+                    car_placeholder.metric("Car", 0)
+                    moto_placeholder.metric("Motorcycle", 0)
+                    bus_placeholder.metric("Bus", 0)
+                    truck_placeholder.metric("Truck", 0)
                 
                 info_placeholder.markdown(render_video_info(st.session_state.uploaded_file_name or "-", "00:00:00", 0, 0, 0), unsafe_allow_html=True)
                 progress_bar.progress(0.0)
@@ -395,7 +446,7 @@ def main():
         duration_s = total_frames / fps_video if fps_video > 0 else 0
         dur_str = time.strftime('%H:%M:%S', time.gmtime(duration_s))
 
-        res_metric.metric("Resolution", f"{w} × {h}")
+        res_metric.markdown(f"**Resolution**\n\n{w} × {h}")
 
         if st.session_state.get("is_paused", False):
             if st.session_state.current_frame_idx > 0:
@@ -428,8 +479,7 @@ def main():
         yolo_detector = None
         if st.session_state.method_selector == "YOLO11":
             try:
-                # Load YOLO model only once before loop
-                yolo_detector = Yolo11VehicleDetector(config.DEFAULT_YOLO_MODEL)
+                yolo_detector = _load_yolo_detector(config.DEFAULT_YOLO_MODEL)
             except Exception as e:
                 st.error(f"Failed to load YOLO model: {e}")
                 st.session_state.is_running = False
@@ -563,28 +613,46 @@ def main():
                 # --- 4. Update Metrics ---
                 fps_placeholder.markdown(f'<div class="fps-container"><p class="fps-label">FPS (Current)</p><p><span class="fps-value">{current_fps:.1f}</span><span class="fps-unit">fps</span></p></div>', unsafe_allow_html=True)
                 avg_fps_metric.metric("Average FPS", f"{avg_fps:.1f} fps")
-                
+
                 if st.session_state.method_selector == "Classical Pipeline":
-                    car_placeholder.markdown(render_vehicle_card("Vùng ứng viên", candidate_count, "blue"), unsafe_allow_html=True)
+                    car_placeholder.metric("Vùng ứng viên", candidate_count)
                     moto_placeholder.empty()
                     bus_placeholder.empty()
                     truck_placeholder.empty()
                 else:
-                    car_placeholder.markdown(render_vehicle_card("Car", c_car, "blue"), unsafe_allow_html=True)
-                    moto_placeholder.markdown(render_vehicle_card("Motorcycle", c_moto, "blue"), unsafe_allow_html=True)
-                    bus_placeholder.markdown(render_vehicle_card("Bus", c_bus, "green"), unsafe_allow_html=True)
-                    truck_placeholder.markdown(render_vehicle_card("Truck", c_truck, "green"), unsafe_allow_html=True)
-                
+                    car_placeholder.metric("Car", c_car)
+                    moto_placeholder.metric("Motorcycle", c_moto)
+                    bus_placeholder.metric("Bus", c_bus)
+                    truck_placeholder.metric("Truck", c_truck)
+
                 # --- 4. Update Table ---
-                hist = (frame_idx, f"{curr_s:.2f}",
-                        c_car,   _avg_conf(detections, "Car"),
-                        c_moto,  _avg_conf(detections, "Motorcycle"),
-                        c_bus,   _avg_conf(detections, "Bus"),
-                        c_truck, _avg_conf(detections, "Truck"), c_tot)
+                if st.session_state.method_selector == "Classical Pipeline":
+                    hist = (frame_idx, f"{curr_s:.2f}", candidate_count)
+                else:
+                    hist = (
+                        frame_idx,
+                        f"{curr_s:.2f}",
+                        c_car,
+                        _avg_conf(detections, "Car"),
+                        c_moto,
+                        _avg_conf(detections, "Motorcycle"),
+                        c_bus,
+                        _avg_conf(detections, "Bus"),
+                        c_truck,
+                        _avg_conf(detections, "Truck"),
+                        c_tot,
+                    )
                 st.session_state.results_history.insert(0, hist)
                 if len(st.session_state.results_history) > 6:
                     st.session_state.results_history.pop()
-                table_placeholder.markdown(_build_results_table(st.session_state.results_history, highlight_row_idx=0), unsafe_allow_html=True)
+                table_placeholder.dataframe(
+                    _build_results_dataframe(
+                        st.session_state.results_history,
+                        st.session_state.method_selector,
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
 
                 # --- 5. Update Info & Progress ---
                 info_placeholder.markdown(render_video_info(st.session_state.uploaded_file_name, dur_str, fps_video, total_frames, frame_idx), unsafe_allow_html=True)
